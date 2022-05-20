@@ -74,7 +74,7 @@ def fill_cols(m):
     m['precession'] = np.rad2deg(np.arctan2(m['x'], m['y']))
     m['nutation'] = N(m['radius'])
 
-# pattern the positions and spin angles
+# pattern row 1
 t.add_row({'x': 68, 'y': 56, 'spin': 180})
 t.add_row({'x': 117, 'y': 28, 'spin': 0})
 t.add_row({'x': 166, 'y': 56, 'spin': 180})
@@ -82,6 +82,14 @@ t.add_row({'x': 215, 'y': 28, 'spin': 0})
 t.add_row({'x': 264, 'y': 56, 'spin': 180})
 t.add_row({'x': 315, 'y': 28, 'spin': 0})
 t.add_row({'x': 370, 'y': 56, 'spin': 180})
+
+# pattern row 2
+t.add_row({'x': 75, 'y': 106, 'spin': 0})
+t.add_row({'x': 124, 'y': 134, 'spin': 180})
+t.add_row({'x': 173, 'y': 106, 'spin': 0})
+t.add_row({'x': 222, 'y': 134, 'spin': 180})
+t.add_row({'x': 271, 'y': 106, 'spin': 0})
+
 for row in t:
     fill_cols(row)
 
