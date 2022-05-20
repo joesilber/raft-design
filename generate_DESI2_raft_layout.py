@@ -15,16 +15,26 @@ S = Polynomial([9.95083E-06, 9.99997E-01, 1.79466E-07, 1.76983E-09, 7.24320E-11,
 N = Polynomial([1.79952E-03, 8.86563E-03, -4.89332E-07, -2.43550E-08, 9.04557E-10, -8.12081E-12, 3.97099E-14, -1.07267E-16, 1.52602E-19, -8.84928E-23])
 sphR = 4978  # mm, approx spherical radius of curvature
 
+# taken from desimeter/xy2qs.py on 2022-05-19
+def s2r(s):
+    '''Convert radial distance along focal surface to polar coordinate r.'''
+    # fitted on desimodel/data/focalplane/fiberpos.ecsv
+    # residuals are < 0.4 microns
+    s = s if isinstance(s, np.ndarray) else np.array(s)
+    c = np.array([-2.60833797e-03,  6.40671681e-03, -5.64913181e-03,  6.99354170e-04, -2.13171265e-04,  1.00000009e+00,  9.75790364e-07])
+    pol = np.poly1d(c)
+    r = 400.*pol(s/400.)
+    return r
 
 # raft geometry inputs
 B = 80.0  # mm, base of raft triangle
 L = 657.0  # mm, length of raft from origin (at center fiber tip) to rear
 g = 2.0  # mm, gap between triangles at rear
-gS = g * sphR / (sphR - L)  # mm, gap  between triangles at rear
+gs = g * sphR / (sphR - L)  # mm, gap  between triangles at rear
 
 # raft outline
 h1 = B * 3**0.5 / 2  # height from base of triangle to opposite tip
-h2 = B / 3**0.5  # height from base of triangle to center
+h2 = B / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
 basic_raft_x = [-B/2,  0, B/2]
 basic_raft_x += [basic_raft_x[0]]
@@ -35,23 +45,36 @@ basic_raft_x += basic_raft_x
 basic_raft_y += basic_raft_y
 basic_raft_z += [-L]*len(basic_raft_z)
 
-# pattern the positions and spin angles
-t = Table(names=['x',   'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
+# table structure for raft positions and orientations
+t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
+def fill_cols(m):
+    '''Fill in other columns, knowing either x and y or precession and S'''
+    if ('x' in m and 'y' in m) and 'radius' not in m:
+        m['radius'] = math.hypot(m['x'], m['y'])
+    if ('x' not in m or 'y' not in m) and ('precession' in m and 'S' in m):
+        m['radius'] = s2r(m['S'])
+        m['x'] = m['radius'] * math.cos(math.radians(m['precession']))
+        m['y'] = m['radius'] * math.sin(math.radians(m['precession']))
+    assert all([label in m for label in ['x', 'y', 'radius']])
+    m['z'] = Z(m['radius'])
+    m['S'] = S(m['radius'])
+    m['precession'] = np.rad2deg(np.arctan2(m['x'], m['y']))
+    m['nutation'] = N(m['radius'])
 
+# pattern the positions and spin angles
 seed0 = {'x': 68.5, 'y': 56.0, 'spin': 180.0}
-seed0['radius'] = math.hypot(seed0['x'], seed0['y'])
-seed0['S'] = S(seed0['radius'])
-seed1 = {'S': seed0['S'] + 2* h2}
+fill_cols(seed0)
 t.add_row(seed0)
 
+shift = 2*h2 + gs
+seed1 = {'x': seed0['x'] + shift*math.cos(math.radians(-30)),
+         'y': seed0['y'] + shift*math.sin(math.radians(-30)),
+         'spin': 0}
+fill_cols(seed1)
+t.add_row(seed1)
 
-# fill in other columns
-t['radius'] = (t['x']**2 + t['y']**2)**0.5
-t['z'] = Z(t['radius'])
-t['S'] = S(t['radius'])
-t['precession'] = np.rad2deg(np.arctan2(t['x'], t['y']))
-t['nutation'] = N(t['radius'])
-t['spin'] -= t['precession']  # counter-act precession
+# counter-act precessions
+t['spin'] -= t['precession']
 
 t.pprint_all()
 
