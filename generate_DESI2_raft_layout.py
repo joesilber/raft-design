@@ -49,7 +49,7 @@ basic_raft_z += [-L]*len(basic_raft_z)
 # nominal spacing between triangles
 spacing_rear = g + 2*h2
 spacing_front = spacing_rear * sphR / (sphR - L)
-crd_margin = lambda radius: sphR * math.radians(CRD(radius + spacing_front) - CRD(radius))
+crd_margin = lambda radius: sphR * math.radians(abs(CRD(radius + spacing_front) - CRD(radius)))
 
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
@@ -68,16 +68,19 @@ def fill_cols(m):
     m['nutation'] = N(m['radius'])
 
 # pattern the positions and spin angles
-seed0 = {'x': 68.5, 'y': 56.0, 'spin': 180.0}
-fill_cols(seed0)
-t.add_row(seed0)
+seed = {'x': 68.5, 'y': 56.0, 'spin': 180.0}
+fill_cols(seed)
+t.add_row(seed)
 
-shift = spacing_front + crd_margin(seed0['radius'])
-seed1 = {'x': seed0['x'] + shift*math.cos(math.radians(-30)),
-         'y': seed0['y'] + shift*math.sin(math.radians(-30)),
-         'spin': 0}
-fill_cols(seed1)
-t.add_row(seed1)
+for i in range(5):
+    shift = spacing_front + crd_margin(seed['radius'])
+    print('shift',i,shift)
+    direction = +30 if i % 2 else -30
+    seed = {'x': seed['x'] + shift*math.cos(math.radians(direction)),
+            'y': seed['y'] + shift*math.sin(math.radians(direction)),
+            'spin': 180 if i % 2 else 0}
+    fill_cols(seed)
+    t.add_row(seed)
 
 # counter-act precessions
 t['spin'] -= t['precession']
@@ -93,10 +96,6 @@ for row in t:
     r = Rotation.from_euler('zyz', [row['precession'], row['nutation'], row['spin']], degrees=True)
     rotated = r.apply(basic)
     translated = rotated + [row['x'], row['y'], row['z']]
-    print('')
-    print('rotated', rotated)
-    print('')
-    print('translated', translated)
     f = np.transpose(translated)
     ax.plot(f[0], f[1], f[2], '-')
 
