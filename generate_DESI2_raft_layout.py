@@ -30,7 +30,6 @@ def s2r(s):
 B = 80.0  # mm, base of raft triangle
 L = 657.0  # mm, length of raft from origin (at center fiber tip) to rear
 g = 2.0  # mm, gap between triangles at rear
-gs = g * sphR / (sphR - L)  # mm, gap  between triangles at rear
 
 # raft outline
 h1 = B * 3**0.5 / 2  # height from base of triangle to opposite tip
@@ -38,12 +37,16 @@ h2 = B / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
 basic_raft_x = [-B/2,  0, B/2]
 basic_raft_x += [basic_raft_x[0]]
-basic_raft_y = [-h3, h2, -h3]
+basic_raft_y = [-h2, h3, -h2]
 basic_raft_y += [basic_raft_y[0]]
 basic_raft_z = [0]*len(basic_raft_x)
 basic_raft_x += basic_raft_x
 basic_raft_y += basic_raft_y
 basic_raft_z += [-L]*len(basic_raft_z)
+
+# nominal spacing between triangles
+spacing_rear = g + gcrn + 2*h2
+spacing_front = spacing_rear * sphR / (sphR - L)
 
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
@@ -66,9 +69,8 @@ seed0 = {'x': 68.5, 'y': 56.0, 'spin': 180.0}
 fill_cols(seed0)
 t.add_row(seed0)
 
-shift = 2*h2 + gs
-seed1 = {'x': seed0['x'] + shift*math.cos(math.radians(-30)),
-         'y': seed0['y'] + shift*math.sin(math.radians(-30)),
+seed1 = {'x': seed0['x'] + spacing_front*math.cos(math.radians(-30)),
+         'y': seed0['y'] + spacing_front*math.sin(math.radians(-30)),
          'spin': 0}
 fill_cols(seed1)
 t.add_row(seed1)
