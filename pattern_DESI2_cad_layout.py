@@ -6,9 +6,11 @@ import sys
 sys.path.append(FREECADPATH)
 import math
 import time
+import os
 import FreeCAD
 import Part
 from FreeCAD import Base
+from astropy.table import Table
 
 script_title = "DESI2 Raft Patterning Script"
 doc_name = "PatternDoc"
@@ -18,89 +20,65 @@ starttime = time.clock()
 print("\nBEGIN " + script_title + "...") # print the script name
 
 # Paths to source model
-homepath = "C:/Users/jhsilber/Documents/PDMWorks/"
+homepath = '~' #"C:/Users/jhsilber/Documents/PDMWorks/"
 source_model = "MM Raft Assembly - simplified - 2022-05-19.STEP"
+model_path = os.path.join(homepath, source_model)
 base_name = "EnvelopesArray"
 
 # Read in the source geometry
 source_name  = "proto"
-source      = AD.addObject("Part::Feature", source_name)
+source       = AD.addObject("Part::Feature", source_name)
 source.Shape = Part.read(homepath + source_model)
 
-# Read in the hole positions
-hole_loc_name = "pos_on_z1.txt"
-hole_loc_file = open(homepath + hole_loc_name,"rU")
-comment_line_symbol = "#"
-i = 0
-hole_number = []
-hole_pos = []
-precession = []
-nutation = []
-spin = []
-for row in hole_loc_file:
-    row_words = row.split()
-    if comment_line_symbol not in row_words:
-        is_symmetric_duplicate = bool(float(row_words[7]))
-        # is_remove = bool(float(row_words[8]))
-        is_remove = 0 # comment out to use is_remove flag in text file (and de-comment line above)
-        if not is_symmetric_duplicate and not is_remove:
-            hole_number = hole_number + [int(row_words[0])]
-            x = float(row_words[1])
-            y = float(row_words[2])
-            z = float(row_words[3])
-            hole_pos = hole_pos + [Base.Vector(x,y,z)]
+# Read in the raft positions
+pattern_name = '20220520T1631_desi2_layout_21rafts_1512robots.csv'
+pattern_path = os.path.join(homepath, pattern_name)
+tbl = Table.read(pattern_path)
 
-    		# Euler angles
-            precession = precession + [float(row_words[4])]
-            nutation   = nutation   + [float(row_words[5])]
-            spin       = spin       + [float(row_words[6])]
-            i += 1
-
-hole_loc_file.close()
 steptime = time.clock()
-print("..." + str(len(hole_pos)) + " hole positions read in %.2f" % ((steptime-starttime)/60) + " min")
+print(f'... {len(tbl)} raft positions read')
 lasttime = steptime
 
-# Choose which subset of holes to pattern
-holes_to_process = range(len(hole_number)) # can argue a smaller set, such as range(150), for testing
+# Choose how many rafts to pattern (can argue a smaller number, i.e. for testing)
+max_patterns = 3  # integer or math.inf
+num_to_process = min(max_patterns, len(tbl))
 
-# Generate the holes
-holes = []
-for i in range(len(holes_to_process)):
-	n = holes_to_process[i]
-	hole_name = "hole" + str(hole_number[n])
-	holes = holes + [AD.addObject("Part::Feature",hole_name)]
-	holes[i].Shape = proto_hole.Shape
 
-# Transform the holes
-for i in range(len(holes)):
-    h = holes_to_process[i]
-    p = precession[h] * math.pi/180
-    n = -(nutation[h] * math.pi/180)
-    s = spin[h] * math.pi/180
+rafts = []
+for i in range(num_to_process):
+    # Generate the raft
+    raft_name = f'raft{i}'
+    rafts += [AD.addObject("Part::Feature", raft_name)]
+    rafts[-1].Shape = source.Shape
+
+    # Transform the raft
+    p = math.radians(tbl['precession'][i])
+    n = math.radians(-tbl['nutation'][i])
+    s = math.radians(tbl['spin'][i])
     q1 = math.cos(s/2)*math.sin(n/2)*math.sin(p/2) - math.sin(s/2)*math.cos(p/2)*math.sin(n/2)
     q2 = -(math.cos(s/2)*math.cos(p/2)*math.sin(n/2) + math.sin(s/2)*math.sin(n/2)*math.sin(p/2))
     q3 = math.cos(s/2)*math.cos(n/2)*math.sin(p/2) + math.cos(n/2)*math.cos(p/2)*math.sin(s/2)
     q4 = math.cos(s/2)*math.cos(n/2)*math.cos(p/2) - math.sin(s/2)*math.cos(n/2)*math.sin(p/2)
-    holes[i].Placement.Rotation = Base.Rotation(q1,q2,q3,q4)
-    holes[i].Placement.Base = hole_pos[h]
+    rafts[-1].Placement.Rotation = Base.Rotation(q1, q2, q3, q4)
+    rafts[-1].Placement.Base = Base.Vector(tbl['x'], tbl['y'], tbl['z'])
 
 steptime = time.clock()
-print("..." + str(len(holes)) + " holes patterned in %.2f" % ((steptime-lasttime)/60) + " min")
+print(f'... {len(rafts)} rafts patterned in {(steptime-lasttime)/60:.2f} min')
 lasttime = steptime
 
 # Export hole array, using GUI module
-export_name = base_name + "_" + str(len(holes)) + ".step"
+export_name = f'{os.path.splitext(pattern_name)[0]}.step'
+export_path = os.path.join(homepath, export_name)
 import ImportGui # import GUI module
-ImportGui.export(holes,homepath + export_name) # requires GUI, does the export of geometry
-App.getDocument("PatternDoc").removeObject("proto_hole") # deletes the proto_hole, just to give user warm-fuzzies about what was exported
+ImportGui.export(rafts, export_path) # requires GUI, does the export of geometry
+App.getDocument("PatternDoc").removeObject("proto") # deletes the proto raft, just to give user warm-fuzzies about what was exported
 Gui.SendMsgToActiveView("ViewFit") # requires GUI, gives user warm-fuzzies
 Gui.activeDocument().activeView().viewAxometric() # requires GUI, gives user warm-fuzzies
 steptime = time.clock()
-print("...export array in %.2f" % ((steptime-lasttime)/60) + " min")
+print(f'... exported array in {(steptime-lasttime)/60:.2f} min')
 lasttime = steptime
 
 endtime = time.clock()
 runtime = endtime-starttime
-print("...DONE")
-print("Total runtime = %.2f" % (runtime/60) + " min\n")
+print('... DONE')
+print(f'Total runtime = {runtime/60:.2f} min\n')
