@@ -54,33 +54,22 @@ crd_margin = lambda radius: sphR * math.radians(abs(CRD(radius + spacing_front) 
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
 def fill_cols(m):
-    '''Fill in other columns, knowing either x and y or precession and S'''
-    if ('x' in m and 'y' in m) and 'radius' not in m:
-        m['radius'] = math.hypot(m['x'], m['y'])
-    if ('x' not in m or 'y' not in m) and ('precession' in m and 'S' in m):
-        m['radius'] = s2r(m['S'])
-        m['x'] = m['radius'] * math.cos(math.radians(m['precession']))
-        m['y'] = m['radius'] * math.sin(math.radians(m['precession']))
-    assert all([label in m for label in ['x', 'y', 'radius']])
+    '''Fill in other columns, knowing x and y'''
+    m['radius'] = math.hypot(m['x'], m['y'])
     m['z'] = Z(m['radius'])
     m['S'] = S(m['radius'])
     m['precession'] = np.rad2deg(np.arctan2(m['x'], m['y']))
     m['nutation'] = N(m['radius'])
 
 # pattern the positions and spin angles
-seed = {'x': 68.5, 'y': 56.0, 'spin': 180.0}
-fill_cols(seed)
-t.add_row(seed)
-
-for i in range(5):
-    shift = spacing_front + crd_margin(seed['radius'])
-    print('shift',i,shift)
-    direction = +30 if i % 2 else -30
-    seed = {'x': seed['x'] + shift*math.cos(math.radians(direction)),
-            'y': seed['y'] + shift*math.sin(math.radians(direction)),
-            'spin': 180 if i % 2 else 0}
-    fill_cols(seed)
-    t.add_row(seed)
+t.add_row({'x': 68, 'y': 56, 'spin': 180})
+t.add_row({'x': 132, 'y': 19, 'spin': 0})
+t.add_row({'x': 190, 'y': 56, 'spin': 180})
+t.add_row({'x': 260, 'y': 19, 'spin': 0})
+t.add_row({'x': 324, 'y': 56, 'spin': 180})
+t.add_row({'x': 388, 'y': 19, 'spin': 0})
+for row in t:
+    fill_cols(row)
 
 # counter-act precessions
 t['spin'] -= t['precession']
@@ -127,4 +116,5 @@ ax.set_ylabel('y')
 ax.set_zlabel('z')
 ax.set_box_aspect([1, 1, 1])
 ax.set_proj_type('ortho')
+ax.view_init(90, 270)
 plt.show()
