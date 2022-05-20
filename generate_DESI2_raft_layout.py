@@ -4,6 +4,7 @@ from numpy.polynomial import Polynomial
 from astropy.table import Table
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 import matplotlib.pyplot as plt
+import os
 
 # polynomial fits of DESI focal surface asphere, as functions of radius
 # c.f. DESI-0530-v18
@@ -109,10 +110,17 @@ for row in t:
 # counter-act precessions
 t['spin'] -= t['precession']
 
+# print stats and write table
 t.pprint_all()
+n_rafts = len(t)
+n_robots = n_rafts*72
+basename = f'desi2_layout_{n_rafts}rafts_{n_robots}robots'
+filename = basename + '.csv'
+t.write(filename, overwrite=True)
+print(f'Saved table to {os.path.abspath(filename)}')
 
 # plot rafts
-fig = plt.figure(figsize=plt.figaspect(1)*2)
+fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
 ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
 for row in t:
@@ -122,7 +130,6 @@ for row in t:
     translated = rotated + [row['x'], row['y'], row['z']]
     f = np.transpose(translated)
     ax.plot(f[0], f[1], f[2], '-')
-print(f'Plotted {len(t)} rafts --> {len(t)*72} robots.')
 
 # plot envelope
 ax.plot(envelope_x, envelope_y, envelope_z, 'k--')
@@ -150,10 +157,19 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 set_axes_equal(ax)
-ax.set_xlabel('x')
-ax.set_ylabel('y')
-ax.set_zlabel('z')
+ax.set_xlabel('x (mm)')
+ax.set_ylabel('y (mm)')
+ax.set_zlabel('z (mm)')
 ax.set_box_aspect([1, 1, 1])
 ax.set_proj_type('ortho')
-ax.view_init(90, 270)
-plt.show()
+ax.azim = -114
+ax.elev = 23
+
+num_text = f'{n_rafts} rafts --> {n_robots} robots'
+plt.title(num_text)
+
+filename = basename + '.png'
+plt.savefig(filename)
+print(f'Plotted {num_text}.')
+print(f'Saved plot to {os.path.abspath(filename)}')
+
