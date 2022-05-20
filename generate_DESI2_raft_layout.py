@@ -71,7 +71,7 @@ def fill_cols(m):
     m['radius'] = math.hypot(m['x'], m['y'])
     m['z'] = Z(m['radius'])
     m['S'] = S(m['radius'])
-    m['precession'] = np.rad2deg(np.arctan2(m['x'], m['y']))
+    m['precession'] = np.rad2deg(np.arctan2(m['y'], m['x']))
     m['nutation'] = N(m['radius'])
 
 # pattern row 1
@@ -104,7 +104,7 @@ ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
 for row in t:
     basic = np.transpose([basic_raft_x, basic_raft_y, basic_raft_z])
-    r = Rotation.from_euler('ZXZ',(row['precession'], row['nutation'], row['spin']), degrees=True)  # [JHS] I am confused why ZXZ, I expected should be ZYZ but that doesn't work (projections come out perpendicularly wrong)
+    r = Rotation.from_euler('ZYZ',(row['precession'], row['nutation'], row['spin']), degrees=True)
     rotated = r.apply(basic)
     translated = rotated + [row['x'], row['y'], row['z']]
     f = np.transpose(translated)
