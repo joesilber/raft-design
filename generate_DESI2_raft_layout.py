@@ -82,7 +82,7 @@ ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
 for row in t:
     basic = np.transpose([basic_raft_x, basic_raft_y, basic_raft_z])
-    r = Rotation.from_euler('ZXZ',(row['precession'], row['nutation'], row['spin']), degrees=True)
+    r = Rotation.from_euler('ZXZ',(row['precession'], row['nutation'], row['spin']), degrees=True)  # [JHS] I am confused why ZXZ, I expected should be ZYZ but that doesn't work (projections come out perpendicularly wrong)
     rotated = r.apply(basic)
     translated = rotated + [row['x'], row['y'], row['z']]
     f = np.transpose(translated)
