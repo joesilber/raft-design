@@ -63,11 +63,12 @@ def fill_cols(m):
 
 # pattern the positions and spin angles
 t.add_row({'x': 68, 'y': 56, 'spin': 180})
-t.add_row({'x': 132, 'y': 19, 'spin': 0})
-t.add_row({'x': 190, 'y': 56, 'spin': 180})
-t.add_row({'x': 260, 'y': 19, 'spin': 0})
-t.add_row({'x': 324, 'y': 56, 'spin': 180})
-t.add_row({'x': 388, 'y': 19, 'spin': 0})
+t.add_row({'x': 117, 'y': 28, 'spin': 0})
+t.add_row({'x': 166, 'y': 56, 'spin': 180})
+t.add_row({'x': 215, 'y': 28, 'spin': 0})
+t.add_row({'x': 264, 'y': 56, 'spin': 180})
+t.add_row({'x': 315, 'y': 28, 'spin': 0})
+t.add_row({'x': 370, 'y': 56, 'spin': 180})
 for row in t:
     fill_cols(row)
 
