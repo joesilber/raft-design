@@ -81,12 +81,25 @@ fig = plt.figure(figsize=plt.figaspect(1)*2)
 ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
 for row in t:
-    basic = np.transpose([basic_raft_x, basic_raft_y, basic_raft_z])
-    r = Rotation.from_euler('ZYZ',(row['precession'], row['nutation'], row['spin']), degrees=True)
-    print(r.as_euler('ZYZ', degrees=True))
-    rotated = r.apply(basic)
-    translated = rotated + [row['x'], row['y'], row['z']]
-    f = np.transpose(translated)
+    a1 = math.radians(row['precession'])
+    a2 = math.radians(row['nutation'])
+    a3 = math.radians(row['spin'])
+    c1 = math.cos(a1)
+    c2 = math.cos(a2)
+    c3 = math.cos(a3)
+    s1 = math.sin(a1)
+    s2 = math.sin(a2)
+    s3 = math.sin(a3)
+    rot = [[c1*c2*c3-s1*s3, -c3*s1-c1*c2*s3, c1*s2],
+           [c1*s3+c2*c3*s1, c1*c3-c2*s1*s3, s1*s2],
+           [-c3*s2, s2*s3, c2]]
+    basic = np.array([basic_raft_x, basic_raft_y, basic_raft_z])
+    rotated = np.matmul(np.array(rot), basic)
+#    r = Rotation.from_euler('ZYZ',(row['precession'], row['nutation'], row['spin']), degrees=True)
+#    print(r.as_euler('ZYZ', degrees=True))
+#    rotated = r.apply(basic)
+    translated = rotated + np.transpose([[row['x'], row['y'], row['z']]])
+    f = translated
     ax.plot(f[0], f[1], f[2], '-')
 
 # from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
