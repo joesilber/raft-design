@@ -51,6 +51,19 @@ spacing_rear = g + 2*h2
 spacing_front = spacing_rear * sphR / (sphR - L)
 crd_margin = lambda radius: sphR * math.radians(abs(CRD(radius + spacing_front) - CRD(radius)))
 
+# wedge envelope geometry
+envelope_r_max = 416  # mm, max allowable mechanical envelope
+envelope_angle = 72  # deg
+outer_radius_plot_angles = np.radians(np.linspace(0, envelope_angle, 36))
+envelope_x = [0] + [envelope_r_max * math.cos(a) for a in outer_radius_plot_angles]
+envelope_x += [envelope_x[-1]] + [0]
+envelope_y = [0] + [envelope_r_max * math.sin(a) for a in outer_radius_plot_angles]
+envelope_y += [envelope_y[-1]] + [0]
+envelope_z = [0]*len(envelope_x)
+envelope_x += envelope_x
+envelope_y += envelope_y
+envelope_z += [-L]*len(envelope_z)
+
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
 def fill_cols(m):
@@ -88,6 +101,9 @@ for row in t:
     translated = rotated + [row['x'], row['y'], row['z']]
     f = np.transpose(translated)
     ax.plot(f[0], f[1], f[2], '-')
+
+# plot envelope
+ax.plot(envelope_x, envelope_y, envelope_z, 'k--')
 
 # from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
 def set_axes_equal(ax):
