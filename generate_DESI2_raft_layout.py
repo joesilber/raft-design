@@ -91,12 +91,17 @@ t.add_row({'x': 224, 'y': 140, 'spin': 180})
 t.add_row({'x': 277, 'y': 114, 'spin': 0})
 t.add_row({'x': 337, 'y': 140, 'spin': 180})
 
-# pattern row 5
+# pattern row 3
 t.add_row({'x': 102, 'y': 196, 'spin': 0})
 t.add_row({'x': 154, 'y': 224, 'spin': 180})
 t.add_row({'x': 205, 'y': 196, 'spin': 0})
 t.add_row({'x': 261, 'y': 224, 'spin': 180})
 t.add_row({'x': 316, 'y': 196, 'spin': 0})
+
+# pattern row 4
+t.add_row({'x': 142, 'y': 284, 'spin': 0})
+t.add_row({'x': 200, 'y': 314, 'spin': 180})
+t.add_row({'x': 254, 'y': 288, 'spin': 0})
 
 for row in t:
     fill_cols(row)
