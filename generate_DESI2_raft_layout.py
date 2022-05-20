@@ -91,6 +91,13 @@ t.add_row({'x': 224, 'y': 140, 'spin': 180})
 t.add_row({'x': 277, 'y': 114, 'spin': 0})
 t.add_row({'x': 337, 'y': 140, 'spin': 180})
 
+# pattern row 5
+t.add_row({'x': 102, 'y': 196, 'spin': 0})
+t.add_row({'x': 154, 'y': 224, 'spin': 180})
+t.add_row({'x': 205, 'y': 196, 'spin': 0})
+t.add_row({'x': 261, 'y': 224, 'spin': 180})
+t.add_row({'x': 316, 'y': 196, 'spin': 0})
+
 for row in t:
     fill_cols(row)
 
@@ -110,6 +117,7 @@ for row in t:
     translated = rotated + [row['x'], row['y'], row['z']]
     f = np.transpose(translated)
     ax.plot(f[0], f[1], f[2], '-')
+print(f'Plotted {len(t)} rafts --> {len(t)*72} robots.')
 
 # plot envelope
 ax.plot(envelope_x, envelope_y, envelope_z, 'k--')
