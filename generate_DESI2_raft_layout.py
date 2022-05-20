@@ -5,6 +5,10 @@ from astropy.table import Table
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 import matplotlib.pyplot as plt
 import os
+from datetime import datetime
+
+timestamp_fmt = '%Y%m%dT%H%M'
+timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
 
 # polynomial fits of DESI focal surface asphere, as functions of radius
 # c.f. DESI-0530-v18
@@ -114,7 +118,7 @@ t['spin'] -= t['precession']
 t.pprint_all()
 n_rafts = len(t)
 n_robots = n_rafts*72
-basename = f'desi2_layout_{n_rafts}rafts_{n_robots}robots'
+basename = f'{timestamp}_desi2_layout_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}')
@@ -166,7 +170,7 @@ ax.azim = -114
 ax.elev = 23
 
 num_text = f'{n_rafts} rafts --> {n_robots} robots'
-plt.title(num_text)
+plt.title(f'{timestamp}\n{num_text}')
 
 filename = basename + '.png'
 plt.savefig(filename)
