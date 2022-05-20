@@ -76,19 +76,20 @@ def fill_cols(m):
 
 # pattern row 1
 t.add_row({'x': 68, 'y': 56, 'spin': 180})
-t.add_row({'x': 117, 'y': 28, 'spin': 0})
+t.add_row({'x': 116, 'y': 28, 'spin': 0})
 t.add_row({'x': 166, 'y': 56, 'spin': 180})
-t.add_row({'x': 215, 'y': 28, 'spin': 0})
-t.add_row({'x': 264, 'y': 56, 'spin': 180})
-t.add_row({'x': 315, 'y': 28, 'spin': 0})
-t.add_row({'x': 370, 'y': 56, 'spin': 180})
+t.add_row({'x': 216, 'y': 28, 'spin': 0})
+t.add_row({'x': 266, 'y': 56, 'spin': 180})
+t.add_row({'x': 318, 'y': 28, 'spin': 0})
+t.add_row({'x': 375, 'y': 56, 'spin': 180})
 
 # pattern row 2
-t.add_row({'x': 75, 'y': 106, 'spin': 0})
-t.add_row({'x': 124, 'y': 134, 'spin': 180})
-t.add_row({'x': 173, 'y': 106, 'spin': 0})
-t.add_row({'x': 222, 'y': 134, 'spin': 180})
-t.add_row({'x': 271, 'y': 106, 'spin': 0})
+t.add_row({'x': 75, 'y': 112, 'spin': 0})
+t.add_row({'x': 124, 'y': 140, 'spin': 180})
+t.add_row({'x': 173, 'y': 112, 'spin': 0})
+t.add_row({'x': 224, 'y': 140, 'spin': 180})
+t.add_row({'x': 277, 'y': 114, 'spin': 0})
+t.add_row({'x': 337, 'y': 140, 'spin': 180})
 
 for row in t:
     fill_cols(row)
