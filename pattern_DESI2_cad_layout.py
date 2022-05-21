@@ -1,10 +1,11 @@
 # Joe Silber - 2022 - jhsilber@lbl.gov
 # must be run within the FreeCAD gui, due to usage of ImportGui module for making the STEP file at the end
 
-
-FREECADPATH = 'C:/Program Files/FreeCAD 0.19/bin' # path to your FreeCAD.so or FreeCAD.dll file
+FREECAD_PATH = 'C:/Program Files/FreeCAD 0.19/bin' # path to your FreeCAD.so or FreeCAD.dll file
+OTHER_PKGS_PATH = 'C:/Users/joe/AppData/Local/Programs/Python/Python38/Lib/site-packages'
 import sys
-sys.path.append(FREECADPATH)
+sys.path.append(FREECAD_PATH)
+sys.path.append(OTHER_PKGS_PATH)
 import math
 import time
 import os
