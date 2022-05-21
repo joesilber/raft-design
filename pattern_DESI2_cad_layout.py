@@ -42,7 +42,7 @@ print(f'... {len(tbl)} raft positions read')
 lasttime = steptime
 
 # Choose how many rafts to pattern (can argue a smaller number, i.e. for testing)
-max_patterns = 3  # integer or math.inf
+max_patterns = math.inf  # integer or math.inf
 num_to_process = min(max_patterns, len(tbl))
 
 
