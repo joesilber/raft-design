@@ -20,9 +20,9 @@ import fitcircle
 # c.f. DESI-0530-v18
 # Z (mm) ... distance from origin CS5 parallel to optical axis
 # S (mm) ... integrated distance along surface from optical axis
-# NORM (deg) ... normal angle (defined from z-axis, i.e. like an angle measured from x-axis + 90 deg, in the x-z plane)
-# CRD (deg) ... chief ray deviation
-# NUT (deg) ... nutation angle = NORM - CRD = chief ray angle
+# NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
+# CRD (deg) ... chief ray deviation (rotation from x-axis toward z-axis)
+# NUT (deg) ... nutation angle (rotation from z-axis toward x-axis, equivalent to chief ray. NUT = NORM - CRD)
 # vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
 designs = {'DESI':
             {'desc': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
