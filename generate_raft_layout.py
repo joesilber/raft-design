@@ -22,7 +22,7 @@ import fitcircle
 # S (mm) ... integrated distance along surface from optical axis
 # NORM (deg) ... normal angle (defined from z-axis, i.e. like an angle measured from x-axis + 90 deg, in the x-z plane)
 # CRD (deg) ... chief ray deviation
-# NUT (deg) ... nutation angle = NORM + CRD
+# NUT (deg) ... nutation angle = NORM - CRD = chief ray angle
 # vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
 designs = {'DESI':
             {'desc': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
@@ -58,8 +58,9 @@ designs = {'DESI':
 # set up geometry functions
 selected_design = 'DESI'
 design = designs[selected_design]
-R2Z = design['Z']
-vigR = design['vigR']
+R2Z = design['Z']  # should be a function accepting array-like argument for radius, returning z
+R2CRD = design['CRD']  # should be a function accepting array-like argument for radius, returning chief ray deviation
+vigR = design['vigR']  # should be a scalar
 r = np.linspace(0, vigR, 1000)
 z = R2Z(r)
 dr = np.diff(r)
@@ -74,6 +75,11 @@ S2R = interpolate.interp1d(s, r)
 norm = np.degrees(np.arctan(dzdr))
 R2NORM = interpolate.interp1d(r[:-1], norm)
 NORM2R = interpolate.interp1d(norm, r[:-1])
+crd = R2CRD(r)
+nut = norm - crd[:-1]
+CRD2R = interpolate.interp1d(crd, r)
+R2NUT = interpolate.interp1d(r[:-1], nut)
+NUT2R = interpolate.interp1d(nut, r[:-1])
 circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
 rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
 
