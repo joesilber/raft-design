@@ -57,8 +57,6 @@ designs = {'DESI':
 # uargs = parser.parse_args()
 
 
-
-
 # set up geometry functions
 selected_design = 'DESI'
 design = designs[selected_design]
@@ -78,20 +76,6 @@ S2R = interpolate.interp1d(s, r)
 norm = np.degrees(np.arctan(dzdr))
 R2NORM = interpolate.interp1d(r[:-1], norm)
 NORM2R = interpolate.interp1d(norm, r[:-1])
-
-
-# taken from desimeter/xy2qs.py on 2022-05-19
-def s2r(s):
-    '''Convert radial distance along focal surface to polar coordinate r.'''
-    # fitted on desimodel/data/focalplane/fiberpos.ecsv
-    # residuals are < 0.4 microns
-    s = s if isinstance(s, np.ndarray) else np.array(s)
-    c = np.array([-2.60833797e-03,  6.40671681e-03, -5.64913181e-03,  6.99354170e-04, -2.13171265e-04,  1.00000009e+00,  9.75790364e-07])
-    pol = np.poly1d(c)
-    r = 400.*pol(s/400.)
-    return r
-
-
 
 timestamp_fmt = '%Y%m%dT%H%M'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
