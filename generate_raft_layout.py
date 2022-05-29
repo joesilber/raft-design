@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 import os
 from datetime import datetime
 import fitcircle
+import argparse
+
+timestamp_fmt = '%Y%m%dT%H%M'
+timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
 
 # GEOMETRY OF FOCAL SURFACE DESIGNS
 # ---------------------------------
@@ -27,48 +31,35 @@ import fitcircle
 #   S (mm) ... integrated distance along surface from optical axis
 #   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
 #   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
-designs = {
-    'DESI':
-        {'description': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
-        'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
-        'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
-        'vigR': 406.,
-        },
+focal_surfaces = {
     'MM1536_cfg1_2021-09-10':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
         'file': 'MM1536_cfg1_2021-09-10.csv',
         'z_sign': -1,
         'vigR': 613.2713,
         },
+    'DESI':
+        {'description': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
+        'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
+        'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
+        'vigR': 406.,
+        },
     }
+focsurf_numbers = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
-# import argparse
-# parser = argparse.ArgumentParser(description=__doc__)
-# parser.add_argument('-n', '--num_moves', type=int, required=True, help='integer, number of moves to generate')
-# parser.add_argument('-ptl', '--petal_ids', type=str, default='kpno', help='Comma-separated integers, specifying one or more PETAL_ID number(s) for which to retrieve data. Defaults to all known petals at kpno. Alternately argue "lbnl" for all known petals at lbnl.')
-# parser.add_argument('-pos', '--posids', type=str, default='all', help='optional, comma-separated POS_ID strings, saying which positioners to generate targets for (defaults to "all")')
-# parser.add_argument('-s', '--num_stress_select', type=int, default=1, help='optional, integer, for every selected move, code will internally test this many moves and pick the one with the most opportunities for collision.')
-# parser.add_argument('-ai', '--allow_interference', action='store_true', help='optional, allows targets to interfere with one another')
-# parser.add_argument('-lim', '--enable_phi_limit', action='store_true', help='optional, turns on minimum phi limit for move targets, default is False')
-# parser.add_argument('-nb', '--no_buffer', action='store_true', help='optional, turns off extra buffer space added to polygons for target selection')
-# parser.add_argument('-p', '--profile', action='store_true', help='optional, turns on timing profiler for move scheduling')
-# parser.add_argument('-i', '--infile', type=str, default=None, help='optional, either "cache" to use the most recently cached calib data, or else a path to an offline csv file, containing positioner calibration parameters. If not argued, will try getting current values from online db instead (for this you may have to be running from a machine at kpno or beyonce)')
-# parser.add_argument('-o', '--outdir', type=str, default='.', help='optional, path to directory where to save output file, defaults to current dir')
-# parser.add_argument('-m', '--comment', type=str, default='', help='optional, comment string (must enclose in "") that will be included in output file metadata')
-# parser.add_argument('-np', '--n_processes_max', type=int, default=None,  help='max number of processors to use')
-# parser.add_argument('-d', '--debug_mode', action='store_true',  help='restricts processors and any other debug options')
-# uargs = parser.parse_args()
-
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
+userargs = parser.parse_args()
 
 # set up geometry functions
-selected_design = 'MM1536_cfg1_2021-09-10'
-design = designs[selected_design]
-if all(label in design for label in {'Z', 'CRD'}):
-    R2Z = design['Z']  # should be a function accepting numpy array argument for radius, returning z
-    R2CRD = design['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
-elif 'file' in design:
-    t = Table.read(design['file'], comment='#')
+focsurf_number = focsurf_numbers[userargs.focal_surface]
+focsurf = focal_surfaces[focsurf_number]
+if all(label in focsurf for label in {'Z', 'CRD'}):
+    R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
+    R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
+elif 'file' in focsurf:
+    t = Table.read(focsurf['file'], comment='#')
     R2Z = interpolate.interp1d(t['R'], t['Z'], kind='cubic')
     if 'CRD' in t:
         R2CRD = interpolate.interp1d(t['R'], t['CRD'])
@@ -77,10 +68,10 @@ elif 'file' in design:
         print(f'WARNING: no chief ray deviation defined, letting CRD(R)=0')
 else:
     assert False, 'unrecognized geometry input data'
-vigR = design['vigR']  # should be a scalar
-if 'z_sign' in design:
+vigR = focsurf['vigR']  # should be a scalar
+if 'z_sign' in focsurf:
     _R2Z = R2Z
-    R2Z = lambda x: np.sign(design['z_sign']) * _R2Z(x)
+    R2Z = lambda x: np.sign(focsurf['z_sign']) * _R2Z(x)
 r = np.linspace(0, vigR, 10000)
 z = R2Z(r)
 dr = np.diff(r)
@@ -102,10 +93,6 @@ R2NUT = interpolate.interp1d(r[:-1], nut)
 NUT2R = interpolate.interp1d(nut, r[:-1])
 circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
 rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
-
-timestamp_fmt = '%Y%m%dT%H%M'
-timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
-
 
 # raft geometry inputs
 B = 80.0  # mm, base of raft triangle
