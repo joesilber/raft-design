@@ -22,7 +22,7 @@ import fitcircle
 # S (mm) ... integrated distance along surface from optical axis
 # NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
 # CRD (deg) ... chief ray deviation (rotation from x-axis toward z-axis)
-# NUT (deg) ... nutation angle (rotation from z-axis toward x-axis, equivalent to chief ray. NUT = NORM - CRD)
+# NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
 # vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
 designs = {'DESI':
             {'desc': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
@@ -33,8 +33,6 @@ designs = {'DESI':
             'vigR': 406.,
             }
           }
-
-
 
 # command line argument parsing
 # import argparse
@@ -76,7 +74,7 @@ norm = np.degrees(np.arctan(dzdr))
 R2NORM = interpolate.interp1d(r[:-1], norm)
 NORM2R = interpolate.interp1d(norm, r[:-1])
 crd = R2CRD(r)
-nut = norm - crd[:-1]
+nut = - (norm + crd[:-1])
 CRD2R = interpolate.interp1d(crd, r)
 R2NUT = interpolate.interp1d(r[:-1], nut)
 NUT2R = interpolate.interp1d(nut, r[:-1])
