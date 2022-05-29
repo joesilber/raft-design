@@ -34,7 +34,8 @@ designs = {
         }
     'MM1536_cfg1_2021-09-10':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
-        'file': 'MM1536_cfg1_2021-09-10.TXT',
+        'shectman_file': 'MM1536_cfg1_2021-09-10.TXT',
+        'row_skips': 17,
         }
     }
 
