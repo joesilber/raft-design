@@ -16,23 +16,27 @@ from datetime import datetime
 import fitcircle
 
 # GEOMETRY OF FOCAL SURFACE DESIGNS
-# polynomial fits of DESI focal surface asphere, as functions of radius
-# c.f. DESI-0530-v18
-# Z (mm) ... distance from origin CS5 parallel to optical axis
-# S (mm) ... integrated distance along surface from optical axis
-# NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
-# CRD (deg) ... chief ray deviation (rotation from x-axis toward z-axis)
-# NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
-# vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
-designs = {'DESI':
-            {'desc': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
-            'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
-            'S': Polynomial([9.95083E-06, 9.99997E-01, 1.79466E-07, 1.76983E-09, 7.24320E-11, -5.74381E-13, 3.28356E-15, -1.10626E-17, 1.89154E-20, -1.25367E-23]),
-            'N': Polynomial([1.79952E-03, 8.86563E-03, -4.89332E-07, -2.43550E-08, 9.04557E-10, -8.12081E-12, 3.97099E-14, -1.07267E-16, 1.52602E-19, -8.84928E-23]),
-            'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
-            'vigR': 406.,
-            }
-          }
+# ---------------------------------
+# INPUTS:
+#   Z (mm) ... distance from origin parallel to optical axis
+#   CRD (deg) ... chief ray deviation (rotation from x-axis toward z-axis)
+#   vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
+# DERIVED:
+#   S (mm) ... integrated distance along surface from optical axis
+#   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
+#   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
+designs = {
+    'DESI':
+        {'description': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
+        'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
+        'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
+        'vigR': 406.,
+        }
+    'MM1536_cfg1_2021-09-10':
+        {'description': 'MegaMapper 1536 config 1, 2021-09-21',
+        'file': 'MM1536_cfg1_2021-09-10.TXT',
+        }
+    }
 
 # command line argument parsing
 # import argparse
