@@ -21,6 +21,8 @@ import fitcircle
 #   Z (mm) ... distance from origin parallel to optical axis
 #   CRD (deg) ... chief ray deviation (rotation from x-axis toward z-axis)
 #   vigR (mm) ... nominal vignette radius (i.e. size of focal surface)
+#   file ... optional alternate to Z, CRD --- table to read and interpolate
+#   z_sign ... optional, to change direction of +z
 # DERIVED:
 #   S (mm) ... integrated distance along surface from optical axis
 #   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
@@ -31,12 +33,13 @@ designs = {
         'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
         'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
         'vigR': 406.,
-        }
+        },
     'MM1536_cfg1_2021-09-10':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
-        'shectman_file': 'MM1536_cfg1_2021-09-10.TXT',
-        'row_skips': 17,
-        }
+        'file': 'MM1536_cfg1_2021-09-10.csv',
+        'z_sign': -1,
+        'vigR': 613.2713,
+        },
     }
 
 # command line argument parsing
@@ -59,11 +62,25 @@ designs = {
 
 
 # set up geometry functions
-selected_design = 'DESI'
+selected_design = 'MM1536_cfg1_2021-09-10'
 design = designs[selected_design]
-R2Z = design['Z']  # should be a function accepting array-like argument for radius, returning z
-R2CRD = design['CRD']  # should be a function accepting array-like argument for radius, returning chief ray deviation
+if all(label in design for label in {'Z', 'CRD'}):
+    R2Z = design['Z']  # should be a function accepting numpy array argument for radius, returning z
+    R2CRD = design['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
+elif 'file' in design:
+    t = Table.read(design['file'], comment='#')
+    R2Z = interpolate.interp1d(t['R'], t['Z'], kind='cubic')
+    if 'CRD' in t:
+        R2CRD = interpolate.interp1d(t['R'], t['CRD'])
+    else:
+        R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
+        print(f'WARNING: no chief ray deviation defined, letting CRD(R)=0')
+else:
+    assert False, 'unrecognized geometry input data'
 vigR = design['vigR']  # should be a scalar
+if 'z_sign' in design:
+    _R2Z = R2Z
+    R2Z = lambda x: np.sign(design['z_sign']) * _R2Z(x)
 r = np.linspace(0, vigR, 10000)
 z = R2Z(r)
 dr = np.diff(r)
