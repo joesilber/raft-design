@@ -101,20 +101,19 @@ rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (
 concavity = np.sign(rz_ctr[1])  # +1 --> concave, -1 --> convex
 
 # basic raft outline
-B = userargs.raft_tri_base
-L = userargs.raft_length
-C = userargs.raft_chamfer
-h1 = B * 3**0.5 / 2  # height from base of triangle to opposite tip
-h2 = B / 3**0.5 / 2 # height from base of triangle to center
+RB = userargs.raft_tri_base
+RL = userargs.raft_length
+RH = userargs.raft_chamfer
+h1 = RB * 3**0.5 / 2  # height from base of triangle to opposite tip
+h2 = RB / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
-raft_profile_x = [-B/2,  0, B/2]
+raft_profile_x = [-RB/2,  0, RB/2]
 raft_profile_y = [-h2, h3, -h2]
 raft_profile_z = [0, 0, 0]
-raft_profile_xyz = np.array([raft_profile_x, raft_profile_y, raft_profile_z])
-raft_profile_pts = np.transpose(raft_profile_xyz)
+raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 
 # offset to average out the defocus of all the robots on a raft
-raft_targetable_area = B**2/2 - 3*C**2/2
+raft_targetable_area = RB**2/2 - 3*RC**2/2
 above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= concavity  # apply sign for concave vs convex focal surface
@@ -125,7 +124,7 @@ basic_raft_y += [basic_raft_y[0]]
 basic_raft_z = [0]*len(basic_raft_x)
 basic_raft_x += basic_raft_x
 basic_raft_y += basic_raft_y
-basic_raft_z += [L]*len(basic_raft_z)
+basic_raft_z += [RL]*len(basic_raft_z)
 
 
 class Raft:
@@ -144,24 +143,29 @@ class Raft:
     @property
     def r(self):
         '''radial position of center of raft at front'''
-        return math.hypot(x, y)
+        return math.hypot(self.x, self.y)
 
     @property
     def front_poly(self):
         '''polygon of raft profile at front (i.e. at focal surface)'''
-        # should also implement here some small rearward offset to average fiber tips above and below ideal focal surface
-        # perhaps with three points at some radius from center of triangle, set these on the focal surface...
-        # then they form a plane whose normal is 
-
+        poly = raft_profile + [0, 0, avg_focus_offset]
+        return self._place_poly(poly)
 
     @property
     def rear_poly(self):
         '''polygon of raft profile at rear (i.e. at connectors bulkhead, etc)'''
-        pass
+        poly = raft_profile + [0, 0, avg_focus_offset - RL]
+        return self._place_poly(poly)
 
     @property
-    def volume_poly(self):
-        pass
+    def poly3d(self):
+        '''intended for 3D plotting, includes front and rear closed polygons'''
+        front = self.front_poly.tolist()
+        rear = self.rear_poly.tolist()
+        poly3d = front + [front[0]]
+        for i in range(len(rear) - 1):
+            poly3d += [rear[i], rear[i+1], front[i+1]]
+        return poly3d
 
     def front_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
@@ -172,6 +176,20 @@ class Raft:
         '''Returns min distance and perpendicular unit vector from closest segment on this
         raft's front polygon toward corresponding closest point on "other" raft.'''
         return Raft.poly_gap(other.rear_poly, self.rear_poly)
+
+    def _place_poly(self, poly):
+        '''Transform a polygon (N x 3) from the origin to the raft's center position on the
+        focal surface. The polygon is first rotated such that a vector (0, 0, 1) becomes
+        its final orientation when placed at the corresponding radius, and such that a point
+        (0, 0, 0) will land on the focal surface.'''
+        R = math.hypot(self.x, self.y)
+        precession = math.atan2(self.y, self.x)
+        nutation = R2NUT(R)
+        spin = self.spin - precession  # counteract precession, since defining this as 3-2-3 euler rotation
+        rot = Rotation.from_euler('ZYZ', (precession, nutation, spin), degrees=True)
+        rotated = rot.apply(poly)
+        translated = rotated + [self.x, self.y, R2Z(R)]
+        return translated
 
     @staticmethod
     def poly_gap(poly1, poly2):
