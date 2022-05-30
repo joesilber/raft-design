@@ -315,15 +315,6 @@ for j in rng:
     grid['y'] += [v + spacing_y/3 for v in y]
     grid['spin0'] += [180]*len(x)
 
-plt.plot([grid['x'][i] for i in range(len(grid['x'])) if grid['spin0'][i] == 0],
-         [grid['y'][i] for i in range(len(grid['y'])) if grid['spin0'][i] == 0],
-         'b^')
-plt.plot([grid['x'][i] for i in range(len(grid['x'])) if grid['spin0'][i] == 180],
-         [grid['y'][i] for i in range(len(grid['y'])) if grid['spin0'][i] == 180],
-         'rv')
-plt.axis('equal')
-plt.show()
-
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 'spin'])
 
