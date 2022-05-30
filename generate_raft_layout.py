@@ -203,13 +203,13 @@ class Raft:
 
     @staticmethod
     def poly_gap(poly1, poly2):
-        '''Returns a vector for closest distance between two polygons. This is calculated
-        from segments defined by poly2 to vertices defined by poly1. If the two polygons
-        overlap, returns None. The input polygons should be Nx2 arrays of (x, y) or Nx3
-        arrays of (x, y, z) vertices. Returns minimum distance magnitude and unit vector
-        pointing perpendicularly from the nearest poly2 segment to poly1 point.'''
+        '''Returns a magnitude and direction unit vector for closest distance between two polygons.
+        This is calculated from segments defined by poly2 to vertices defined by poly1. If the two
+        polygons overlap, returns (None, None). The input polygons should be Nx2 arrays of (x, y)
+        or Nx3 arrays of (x, y, z) vertices. The returned unit vector points perpendicularly from
+        the nearest poly2 segment toward the corresponding nearest poly1 point.'''
         if Raft.polygons_collide(poly1, poly2):
-            return None
+            return None, None
         test_pts = [np.array(pt) for pt in poly1]
         segment_pts = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
         segment_pts += [(poly2[-1], poly2[0])]  # close the polygon with last segment
@@ -297,7 +297,8 @@ t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 's
 
 # pattern row 1
 t.add_row({'x': 68, 'y': 56, 'spin0': 180})
-t.add_row({'x': 116, 'y': 28, 'spin0': 0})
+t.add_row({'x': 80,#116, 
+'y': 28, 'spin0': 0})
 t.add_row({'x': 166, 'y': 56, 'spin0': 180})
 t.add_row({'x': 216, 'y': 28, 'spin0': 0})
 t.add_row({'x': 266, 'y': 56, 'spin0': 180})
