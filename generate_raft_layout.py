@@ -50,7 +50,7 @@ focsurf_numbers = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
+parser.add_argument('-f', '--focal_surface', type=int, default=1, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
@@ -223,8 +223,14 @@ class Raft:
             seg_unit = seg_vec / seg_mag
             for pt in test_pts:
                 s2_mag = np.dot(pt - s0, seg_unit)
-                s2_vec = s2_mag * seg_unit
-                gap_vec = pt - s2_vec
+                if s2_mag < 0:
+                    gap_vec_start = s0
+                elif s2_mag > seg_mag:
+                    gap_vec_start = s1
+                else:
+                    s2 = s2_mag * seg_unit
+                    gap_vec_start = s2
+                gap_vec = pt - gap_vec_start
                 gap_mag = np.sqrt(gap_vec.dot(gap_vec))
                 if gap_mag < min_dist:
                     min_dist = gap_mag
