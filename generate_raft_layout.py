@@ -292,6 +292,38 @@ envelope_x += envelope_x
 envelope_y += envelope_y
 envelope_z += [-RL]*len(envelope_z)
 
+# generate grid of raft center points
+# (based on two sets of staggered equilateral triangles)
+spacing_x = spacing_front
+spacing_y = spacing_x * math.sqrt(3)/2
+half_width_count = math.ceil(vigR / spacing_x) + 1
+rng = range(-half_width_count, half_width_count+1)
+grid = {'x': [], 'y': [], 'spin0': []}
+for j in rng:
+    x = [spacing_x*i for i in rng]
+    if j % 2:
+        x = [u + spacing_x/2 for u in x]
+    y = [spacing_y * j]*len(x)
+
+    # upward pointing triangles
+    grid['x'] += x
+    grid['y'] += y
+    grid['spin0'] += [0]*len(x)
+
+    # downward pointing triangles
+    grid['x'] += [u + spacing_x/2 for u in x]
+    grid['y'] += [v + spacing_y/3 for v in y]
+    grid['spin0'] += [180]*len(x)
+
+plt.plot([grid['x'][i] for i in range(len(grid['x'])) if grid['spin0'][i] == 0],
+         [grid['y'][i] for i in range(len(grid['y'])) if grid['spin0'][i] == 0],
+         'b^')
+plt.plot([grid['x'][i] for i in range(len(grid['x'])) if grid['spin0'][i] == 180],
+         [grid['y'][i] for i in range(len(grid['y'])) if grid['spin0'][i] == 180],
+         'rv')
+plt.axis('equal')
+plt.show()
+
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 'spin'])
 
