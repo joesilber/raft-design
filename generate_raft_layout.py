@@ -130,49 +130,39 @@ class Raft:
         pass
 
     def front_gap(self, other_raft):
-        # note to self: convert to a "flat xy" system before doing the 2d poly_gap call
         pass
 
     def rear_gap(self, other_raft):
-        # note to self: convert to a "flat xy" system before doing the 2d poly_gap call
         pass
 
     @staticmethod
     def poly_gap(poly1, poly2):
-        '''Returns a vector for closest distance between two polygons.
-        If the two polygons overlap, returns None. The input polygons
-        should be Nx2 arrays of (x, y) vertices.'''
+        '''Returns a vector for closest distance between two polygons. This is calculated
+        from segments defined by poly2 to vertices defined by poly1. If the two polygons
+        overlap, returns None. The input polygons should be Nx2 arrays of (x, y) or Nx3
+        arrays of (x, y, z) vertices. Returns minimum distance magnitude and unit vector
+        pointing perpendicularly from the nearest poly2 segment to poly1 point.'''
         if Raft.polygons_collide(poly1, poly2):
             return None
-        points = poly1
-        segments = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
-        segments += [(poly2[-1], poly2[0])]  # close the polygon with last segment
+        test_pts = [np.array(pt) for pt in poly1]
+        segment_pts = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
+        segment_pts += [(poly2[-1] - poly2[0])]  # close the polygon with last segment
         min_dist = math.inf
-        for pt in points:
-            for seg in segments:
-                x0, x1, x2 = pt[0], seg[0][0], seg[1][0]
-                y0, y1, y2 = pt[1], seg[0][1], seg[1][1]
-                distance = abs((x2-x1)*(y1-y0) - (x1-x0)*(y2-y1)) / ((x2-x1)**2 + (y2-y1)**2)**0.5
-                if distance < min_dist:
-                    min_dist = distance
-                    min_pt = pt
-                    min_seg = seg
-        # note to self, might be cleaner to just do the vector math from the beginning
-        #  1. it's 3d, so more accurate
-        #  2. the direction of the gap is built-in
-        # like:
-        # P - point
-        # D - direction of line (unit length) (i.e. segment unit vector)
-        # A - point in line (i.e. first pt of segment)
-        # X - base of the perpendicular line
-        #     P
-        #    /|
-        #   / |
-        #  /  |
-        # A---X----->D
-        # dist_AX = dot((P-A), D)
-        # vec_X = A + dist_AX*D
-        # vec_XP = P - vec_X
+        min_vec = None
+        for seg in segment_pts:
+            s0 = np.array(seg[0])
+            s1 = np.array(seg[1])
+            seg_vec = s1 - s0
+            seg_mag = np.sqrt(np.sum(np.power(seg_vec, 2)))
+            seg_unit = seg_vec / seg_mag
+            for pt in test_pts:
+                dist = np.dot(pt - s0, seg_unit)
+                if dist < min_dist:
+                    min_dist = dist
+                    min_vec_start_pt = s0 + min_dist*seg_unit
+                    min_vec = pt - min_vec_start_pt
+        min_vec_unit = min_vec / min_dist
+        return min_dist, min_vec_unit
 
     @staticmethod
     def polygons_collide(poly1, poly2):
