@@ -316,36 +316,10 @@ for j in rng:
     grid['spin0'] += [180]*len(x)
 
 # table structure for raft positions and orientations
-t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 'spin'])
-
-# pattern row 1
-t.add_row({'x': 68, 'y': 56, 'spin0': 180})
-t.add_row({'x': 80, 'y': 28, 'spin0': 0})
-t.add_row({'x': 166, 'y': 56, 'spin0': 180})
-t.add_row({'x': 216, 'y': 28, 'spin0': 0})
-t.add_row({'x': 266, 'y': 56, 'spin0': 180})
-t.add_row({'x': 318, 'y': 28, 'spin0': 0})
-t.add_row({'x': 375, 'y': 56, 'spin0': 180})
-
-# pattern row 2
-t.add_row({'x': 75, 'y': 112, 'spin0': 0})
-t.add_row({'x': 124, 'y': 140, 'spin0': 180})
-t.add_row({'x': 173, 'y': 112, 'spin0': 0})
-t.add_row({'x': 224, 'y': 140, 'spin0': 180})
-t.add_row({'x': 277, 'y': 114, 'spin0': 0})
-t.add_row({'x': 337, 'y': 140, 'spin0': 180})
-
-# pattern row 3
-t.add_row({'x': 102, 'y': 196, 'spin0': 0})
-t.add_row({'x': 154, 'y': 224, 'spin0': 180})
-t.add_row({'x': 205, 'y': 196, 'spin0': 0})
-t.add_row({'x': 261, 'y': 224, 'spin0': 180})
-t.add_row({'x': 316, 'y': 196, 'spin0': 0})
-
-# pattern row 4
-t.add_row({'x': 142, 'y': 284, 'spin0': 0})
-t.add_row({'x': 200, 'y': 314, 'spin0': 180})
-t.add_row({'x': 254, 'y': 288, 'spin0': 0})
+t = Table(grid)
+other_cols = ['z', 'radius', 'precession', 'nutation', 'spin']
+for col in other_cols:
+    t[col] = [0]*len(t)
 
 # generate raft instances
 rafts = []
@@ -358,9 +332,13 @@ for row in t:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
 
-m1, v1 = rafts[0].front_gap(rafts[1])
-m2, v2 = rafts[1].front_gap(rafts[0])
-m3, v3 = rafts[0].rear_gap(rafts[1])
+def print_gap(i, j):
+    m1, v1 = rafts[i].front_gap(rafts[j])
+    m2, v2 = rafts[i].rear_gap(rafts[j])
+    print(f'Front gap raft {i} --> {j} = {m1}, direction = {v1}')
+    print(f' Rear gap raft {i} --> {j} = {m2}, direction = {v2}')
+
+print_gap(0, 1)
 
 # print stats and write table
 t.pprint_all()
