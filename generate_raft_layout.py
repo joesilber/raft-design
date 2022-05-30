@@ -132,9 +132,9 @@ class Raft:
     
     def __init__(self, x=0, y=0, spin=0):
         '''
-        x ... x location of center of front triangle
-        y ... y location of center of front triangle
-        spin0 ... rotation of triangle, *not* including precession compensation
+        x ... [mm] x location of center of front triangle
+        y ... [mm] y location of center of front triangle
+        spin0 ... [deg] rotation of triangle, *not* including precession compensation
         '''
         self.x = x
         self.y = y
@@ -142,24 +142,29 @@ class Raft:
 
     @property
     def r(self):
-        '''radial position of center of raft at front'''
+        '''radial position [mm] of center of raft at front'''
         return math.hypot(self.x, self.y)
+    
+    def z(self):
+        '''z position [mm] of center of raft at front'''
+        offset_correction = avg_focus_offset * math.cos(math.radians(self.nutation))
+        return R2Z(self.r) + offset_correction
 
     @property
     def precession(self):
-        '''angular position about the z-axis, same as precession'''
-        return math.atan2(self.y, self.x)
+        '''angular position [deg] about the z-axis, same as precession'''
+        return math.degrees(math.atan2(self.y, self.x))
 
     @property
     def nutation(self):
-        '''angle w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
+        '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
         return R2NUT(R)
     
     @property
     def spin(self)
-        '''rotation about raft's local z-axis, *including* compensation for
+        '''rotation [deg] about raft's local z-axis, *including* compensation for
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
-        return self.spin0 - precession
+        return self.spin0 - self.precession
 
     @property
     def front_poly(self):
@@ -289,13 +294,6 @@ envelope_z += [-L]*len(envelope_z)
 
 # table structure for raft positions and orientations
 t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
-def fill_cols(m):
-    '''Fill in other columns, knowing x and y'''
-    m['radius'] = math.hypot(m['x'], m['y'])
-    m['z'] = Z(m['radius'])
-    m['S'] = S(m['radius'])
-    m['precession'] = np.rad2deg(np.arctan2(m['y'], m['x']))
-    m['nutation'] = N(m['radius'])
 
 # pattern row 1
 t.add_row({'x': 68, 'y': 56, 'spin': 180})
@@ -326,16 +324,16 @@ t.add_row({'x': 142, 'y': 284, 'spin': 0})
 t.add_row({'x': 200, 'y': 314, 'spin': 180})
 t.add_row({'x': 254, 'y': 288, 'spin': 0})
 
-for row in t:
-    fill_cols(row)
-
-# counter-act precessions
-t['spin'] -= t['precession']
-
 # generate raft instances
 rafts = []
 for row in t:
-    rafts.append(Raft(x=row['x'], y=row['y'], spin=row['spin']))
+    raft = Raft(x=row['x'], y=row['y'], spin=row['spin'])
+    rafts += [raft]
+    m['radius'] = raft.r
+    m['z'] = raft.z
+    m['precession'] = raft.precession
+    m['nutation'] = raft.nutation
+    m['spin'] = raft.spin
 
 # print stats and write table
 t.pprint_all()
