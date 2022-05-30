@@ -184,12 +184,12 @@ class Raft:
     def front_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
         raft's front polygon toward corresponding closest point on "other" raft.'''
-        return Raft.poly_gap(other.front_poly, self.front_poly)
+        return Raft.poly_gap(other_raft.front_poly, self.front_poly)
 
     def rear_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
         raft's front polygon toward corresponding closest point on "other" raft.'''
-        return Raft.poly_gap(other.rear_poly, self.rear_poly)
+        return Raft.poly_gap(other_raft.rear_poly, self.rear_poly)
 
     def _place_poly(self, poly):
         '''Transform a polygon (N x 3) from the origin to the raft's center position on the
@@ -212,7 +212,7 @@ class Raft:
             return None
         test_pts = [np.array(pt) for pt in poly1]
         segment_pts = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
-        segment_pts += [(poly2[-1] - poly2[0])]  # close the polygon with last segment
+        segment_pts += [(poly2[-1], poly2[0])]  # close the polygon with last segment
         min_dist = math.inf
         min_vec = None
         for seg in segment_pts:
@@ -327,6 +327,10 @@ for row in t:
     row['precession'] = raft.precession
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
+
+gap1 = rafts[0].front_gap(rafts[1])
+gap2 = rafts[1].front_gap(rafts[0])
+gap3 = rafts[0].rear_gap([rafts[1]])
 
 # print stats and write table
 t.pprint_all()
