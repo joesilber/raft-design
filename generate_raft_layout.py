@@ -50,6 +50,9 @@ focsurf_numbers = {i: name for i, name in enumerate(focal_surfaces)}
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
+parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
+parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
+parser.add-argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -94,15 +97,121 @@ NUT2R = interpolate.interp1d(nut, r[:-1])
 circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
 rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
 
-# raft geometry inputs
-B = 80.0  # mm, base of raft triangle
-L = 657.0  # mm, length of raft from origin (at center fiber tip) to rear
-g = 2.0  # mm, gap between triangles at rear
-
 # raft outline
+B = userargs.raft_tri_base
+L = userargs.raft_length
 h1 = B * 3**0.5 / 2  # height from base of triangle to opposite tip
 h2 = B / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
+
+class Raft:
+    '''Represents a single triangular raft.'''
+    
+    def __init__(self, x=0, y=0, spin=0):
+        '''
+        x ... x location of center of front triangle
+        y ... y location of center of front triangle
+        spin ... rotation of triangle
+        '''
+        self._x = x
+        self._y = y
+        self.spin = spin
+
+    @property
+    def front_poly(self):
+        pass
+
+    @property
+    def rear_poly(self):
+        pass
+
+    @property
+    def volume_poly(self):
+        pass
+
+    def front_gap(self, other_raft):
+        # note to self: convert to a "flat xy" system before doing the 2d poly_gap call
+        pass
+
+    def rear_gap(self, other_raft):
+        # note to self: convert to a "flat xy" system before doing the 2d poly_gap call
+        pass
+
+    @staticmethod
+    def poly_gap(poly1, poly2):
+        '''Returns a vector for closest distance between two polygons.
+        If the two polygons overlap, returns None. The input polygons
+        should be Nx2 arrays of (x, y) vertices.'''
+        if Raft.polygons_collide(poly1, poly2):
+            return None
+        points = poly1
+        segments = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
+        segments += [(poly2[-1], poly2[0])]  # close the polygon with last segment
+        min_dist = math.inf
+        for pt in points:
+            for seg in segments:
+                x0, x1, x2 = pt[0], seg[0][0], seg[1][0]
+                y0, y1, y2 = pt[1], seg[0][1], seg[1][1]
+                distance = abs((x2-x1)*(y1-y0) - (x1-x0)*(y2-y1)) / ((x2-x1)**2 + (y2-y1)**2)**0.5
+                if distance < min_dist:
+                    min_dist = distance
+                    min_pt = pt
+                    min_seg = seg
+        # note to self, might be cleaner to just do the vector math from the beginning
+        #  1. it's 3d, so more accurate
+        #  2. the direction of the gap is built-in
+        # like:
+        # P - point
+        # D - direction of line (unit length) (i.e. segment unit vector)
+        # A - point in line (i.e. first pt of segment)
+        # X - base of the perpendicular line
+        #     P
+        #    /|
+        #   / |
+        #  /  |
+        # A---X----->D
+        # dist_AX = dot((P-A), D)
+        # vec_X = A + dist_AX*D
+        # vec_XP = P - vec_X
+
+    @staticmethod
+    def polygons_collide(poly1, poly2):
+        """Check whether two closed polygons collide.
+
+        poly1 ... Nx2 array of the 1st polygon's vertices
+        poly2 ... Nx2 array of the 2nd polygon's vertices
+
+        Returns True if the polygons intersect, False if they do not.
+
+        The algorithm is by detecting intersection of line segments, therefore the case of
+        a small polygon completely enclosed by a larger polygon will return False. Not checking
+        for this condition admittedly breaks some conceptual logic, but this case is not
+        anticipated to occur given the DESI petal geometry, and speed is at a premium.
+        """
+        for i in range(len(poly1) - 1):
+            for j in range(len(poly2) - 1):
+                if Raft.segments_intersect(poly1[i], poly1[i+1], poly2[j], poly2[j+1]):
+                    return True
+        return False
+
+    @staticmethod
+    def segments_intersect(A1, A2, B1, B2):
+        """Checks whether two 2d line segments intersect. The endpoints for segments
+        A and B are each a pair of (x, y) coordinates.
+        """
+        dx_A = A2[0] - A1[0]
+        dy_A = A2[1] - A1[1]
+        dx_B = B2[0] - B1[0]
+        dy_B = B2[1] - B1[1]
+        delta = dx_B * dy_A - dy_B * dx_A
+        if delta == 0.0:
+            return False  # parallel segments
+        s = (dx_A * (B1[1] - A1[1]) + dy_A * (A1[0] - B1[0])) / delta
+        t = (dx_B * (A1[1] - B1[1]) + dy_B * (B1[0] - A1[0])) / (-delta)
+        return (0 <= s <= 1) and (0 <= t <= 1)
+
+
+
 basic_raft_x = [-B/2,  0, B/2]
 basic_raft_x += [basic_raft_x[0]]
 basic_raft_y = [-h2, h3, -h2]
@@ -110,10 +219,12 @@ basic_raft_y += [basic_raft_y[0]]
 basic_raft_z = [0]*len(basic_raft_x)
 basic_raft_x += basic_raft_x
 basic_raft_y += basic_raft_y
-basic_raft_z += [-L]*len(basic_raft_z)
+basic_raft_z += [L]*len(basic_raft_z)
+
+# for use later, to calculate distance between trian
 
 # nominal spacing between triangles
-spacing_rear = g + 2*h2
+spacing_rear = userargs.raft_rear_gap + 2*h2
 spacing_front = spacing_rear * sphR / (sphR - L)
 crd_margin = lambda radius: sphR * math.radians(abs(CRD(radius + spacing_front) - CRD(radius)))
 
