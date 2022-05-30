@@ -121,7 +121,7 @@ avg_focus_offset *= concavity  # apply sign for concave vs convex focal surface
 class Raft:
     '''Represents a single triangular raft.'''
     
-    def __init__(self, x=0, y=0, spin=0):
+    def __init__(self, x=0, y=0, spin0=0):
         '''
         x ... [mm] x location of center of front triangle
         y ... [mm] y location of center of front triangle
@@ -129,13 +129,14 @@ class Raft:
         '''
         self.x = x
         self.y = y
-        self.spin = spin
+        self.spin0 = spin0
 
     @property
     def r(self):
         '''radial position [mm] of center of raft at front'''
         return math.hypot(self.x, self.y)
     
+    @property
     def z(self):
         '''z position [mm] of center of raft at front'''
         offset_correction = avg_focus_offset * math.cos(math.radians(self.nutation))
@@ -149,7 +150,7 @@ class Raft:
     @property
     def nutation(self):
         '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
-        return R2NUT(R)
+        return R2NUT(self.r)
     
     @property
     def spin(self):
@@ -177,6 +178,7 @@ class Raft:
         poly3d = front + [front[0]]
         for i in range(len(rear) - 1):
             poly3d += [rear[i], rear[i+1], front[i+1]]
+        poly3d += [rear[i+1], rear[0]]
         return poly3d
 
     def front_gap(self, other_raft):
@@ -281,50 +283,50 @@ envelope_y += [envelope_y[-1]] + [0]
 envelope_z = [0]*len(envelope_x)
 envelope_x += envelope_x
 envelope_y += envelope_y
-envelope_z += [-L]*len(envelope_z)
+envelope_z += [-RL]*len(envelope_z)
 
 # table structure for raft positions and orientations
-t = Table(names=['x', 'y',  'z', 'radius', 'S', 'precession', 'nutation', 'spin'])
+t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 'spin'])
 
 # pattern row 1
-t.add_row({'x': 68, 'y': 56, 'spin': 180})
-t.add_row({'x': 116, 'y': 28, 'spin': 0})
-t.add_row({'x': 166, 'y': 56, 'spin': 180})
-t.add_row({'x': 216, 'y': 28, 'spin': 0})
-t.add_row({'x': 266, 'y': 56, 'spin': 180})
-t.add_row({'x': 318, 'y': 28, 'spin': 0})
-t.add_row({'x': 375, 'y': 56, 'spin': 180})
+t.add_row({'x': 68, 'y': 56, 'spin0': 180})
+t.add_row({'x': 116, 'y': 28, 'spin0': 0})
+t.add_row({'x': 166, 'y': 56, 'spin0': 180})
+t.add_row({'x': 216, 'y': 28, 'spin0': 0})
+t.add_row({'x': 266, 'y': 56, 'spin0': 180})
+t.add_row({'x': 318, 'y': 28, 'spin0': 0})
+t.add_row({'x': 375, 'y': 56, 'spin0': 180})
 
 # pattern row 2
-t.add_row({'x': 75, 'y': 112, 'spin': 0})
-t.add_row({'x': 124, 'y': 140, 'spin': 180})
-t.add_row({'x': 173, 'y': 112, 'spin': 0})
-t.add_row({'x': 224, 'y': 140, 'spin': 180})
-t.add_row({'x': 277, 'y': 114, 'spin': 0})
-t.add_row({'x': 337, 'y': 140, 'spin': 180})
+t.add_row({'x': 75, 'y': 112, 'spin0': 0})
+t.add_row({'x': 124, 'y': 140, 'spin0': 180})
+t.add_row({'x': 173, 'y': 112, 'spin0': 0})
+t.add_row({'x': 224, 'y': 140, 'spin0': 180})
+t.add_row({'x': 277, 'y': 114, 'spin0': 0})
+t.add_row({'x': 337, 'y': 140, 'spin0': 180})
 
 # pattern row 3
-t.add_row({'x': 102, 'y': 196, 'spin': 0})
-t.add_row({'x': 154, 'y': 224, 'spin': 180})
-t.add_row({'x': 205, 'y': 196, 'spin': 0})
-t.add_row({'x': 261, 'y': 224, 'spin': 180})
-t.add_row({'x': 316, 'y': 196, 'spin': 0})
+t.add_row({'x': 102, 'y': 196, 'spin0': 0})
+t.add_row({'x': 154, 'y': 224, 'spin0': 180})
+t.add_row({'x': 205, 'y': 196, 'spin0': 0})
+t.add_row({'x': 261, 'y': 224, 'spin0': 180})
+t.add_row({'x': 316, 'y': 196, 'spin0': 0})
 
 # pattern row 4
-t.add_row({'x': 142, 'y': 284, 'spin': 0})
-t.add_row({'x': 200, 'y': 314, 'spin': 180})
-t.add_row({'x': 254, 'y': 288, 'spin': 0})
+t.add_row({'x': 142, 'y': 284, 'spin0': 0})
+t.add_row({'x': 200, 'y': 314, 'spin0': 180})
+t.add_row({'x': 254, 'y': 288, 'spin0': 0})
 
 # generate raft instances
 rafts = []
 for row in t:
-    raft = Raft(x=row['x'], y=row['y'], spin=row['spin'])
+    raft = Raft(x=row['x'], y=row['y'], spin0=row['spin0'])
     rafts += [raft]
-    m['radius'] = raft.r
-    m['z'] = raft.z
-    m['precession'] = raft.precession
-    m['nutation'] = raft.nutation
-    m['spin'] = raft.spin
+    row['radius'] = raft.r
+    row['z'] = raft.z
+    row['precession'] = raft.precession
+    row['nutation'] = raft.nutation
+    row['spin'] = raft.spin
 
 # print stats and write table
 t.pprint_all()
