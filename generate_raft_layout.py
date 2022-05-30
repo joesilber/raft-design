@@ -134,7 +134,7 @@ class Raft:
         '''
         x ... x location of center of front triangle
         y ... y location of center of front triangle
-        spin ... rotation of triangle
+        spin0 ... rotation of triangle, *not* including precession compensation
         '''
         self.x = x
         self.y = y
@@ -144,6 +144,22 @@ class Raft:
     def r(self):
         '''radial position of center of raft at front'''
         return math.hypot(self.x, self.y)
+
+    @property
+    def precession(self):
+        '''angular position about the z-axis, same as precession'''
+        return math.atan2(self.y, self.x)
+
+    @property
+    def nutation(self):
+        '''angle w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
+        return R2NUT(R)
+    
+    @property
+    def spin(self)
+        '''rotation about raft's local z-axis, *including* compensation for
+        precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
+        return self.spin0 - precession
 
     @property
     def front_poly(self):
@@ -182,13 +198,9 @@ class Raft:
         focal surface. The polygon is first rotated such that a vector (0, 0, 1) becomes
         its final orientation when placed at the corresponding radius, and such that a point
         (0, 0, 0) will land on the focal surface.'''
-        R = math.hypot(self.x, self.y)
-        precession = math.atan2(self.y, self.x)
-        nutation = R2NUT(R)
-        spin = self.spin - precession  # counteract precession, since defining this as 3-2-3 euler rotation
-        rot = Rotation.from_euler('ZYZ', (precession, nutation, spin), degrees=True)
+        rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
         rotated = rot.apply(poly)
-        translated = rotated + [self.x, self.y, R2Z(R)]
+        translated = rotated + [self.x, self.y, R2Z(self.r)]
         return translated
 
     @staticmethod
@@ -260,7 +272,7 @@ class Raft:
 # nominal spacing between triangles
 spacing_rear = userargs.raft_rear_gap + 2*h2
 spacing_front = spacing_rear * sphR / (sphR - L)
-crd_margin = lambda radius: sphR * math.radians(abs(CRD(radius + spacing_front) - CRD(radius)))
+crd_margin = lambda radius: sphR * math.radians(abs(R2CRD(radius + spacing_front) - R2CRD(radius)))
 
 # wedge envelope geometry
 envelope_r_max = 416  # mm, max allowable mechanical envelope
@@ -320,9 +332,14 @@ for row in t:
 # counter-act precessions
 t['spin'] -= t['precession']
 
+# generate raft instances
+rafts = []
+for row in t:
+    rafts.append(Raft(x=row['x'], y=row['y'], spin=row['spin']))
+
 # print stats and write table
 t.pprint_all()
-n_rafts = len(t)
+n_rafts = len(rafts)
 n_robots = n_rafts*72
 basename = f'{timestamp}_desi2_layout_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
