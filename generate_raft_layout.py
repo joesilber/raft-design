@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 '''Generates a layout of triangular raft modules on a focal surface. Layout is saved
 as a csv table, as well as illustrated with an approximately to-scale 3D plot.
+Contact: Joe Silber, jhsilber@lbl.gov
 '''
 
 import math
@@ -52,7 +53,8 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.A
 parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add-argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
+parser.add_argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
+parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -96,13 +98,35 @@ R2NUT = interpolate.interp1d(r[:-1], nut)
 NUT2R = interpolate.interp1d(nut, r[:-1])
 circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
 rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
+concavity = np.sign(rz_ctr[1])  # +1 --> concave, -1 --> convex
 
-# raft outline
+# basic raft outline
 B = userargs.raft_tri_base
 L = userargs.raft_length
+C = userargs.raft_chamfer
 h1 = B * 3**0.5 / 2  # height from base of triangle to opposite tip
 h2 = B / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
+raft_profile_x = [-B/2,  0, B/2]
+raft_profile_y = [-h2, h3, -h2]
+raft_profile_z = [0, 0, 0]
+raft_profile_xyz = np.array([raft_profile_x, raft_profile_y, raft_profile_z])
+raft_profile_pts = np.transpose(raft_profile_xyz)
+
+# offset to average out the defocus of all the robots on a raft
+raft_targetable_area = B**2/2 - 3*C**2/2
+above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
+avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
+avg_focus_offset *= concavity  # apply sign for concave vs convex focal surface
+
+basic_raft_x += [basic_raft_x[0]]
+basic_raft_y = [-h2, h3, -h2]
+basic_raft_y += [basic_raft_y[0]]
+basic_raft_z = [0]*len(basic_raft_x)
+basic_raft_x += basic_raft_x
+basic_raft_y += basic_raft_y
+basic_raft_z += [L]*len(basic_raft_z)
+
 
 class Raft:
     '''Represents a single triangular raft.'''
@@ -113,16 +137,26 @@ class Raft:
         y ... y location of center of front triangle
         spin ... rotation of triangle
         '''
-        self._x = x
-        self._y = y
+        self.x = x
+        self.y = y
         self.spin = spin
 
     @property
+    def r(self):
+        '''radial position of center of raft at front'''
+        return math.hypot(x, y)
+
+    @property
     def front_poly(self):
-        pass
+        '''polygon of raft profile at front (i.e. at focal surface)'''
+        # should also implement here some small rearward offset to average fiber tips above and below ideal focal surface
+        # perhaps with three points at some radius from center of triangle, set these on the focal surface...
+        # then they form a plane whose normal is 
+
 
     @property
     def rear_poly(self):
+        '''polygon of raft profile at rear (i.e. at connectors bulkhead, etc)'''
         pass
 
     @property
@@ -130,10 +164,14 @@ class Raft:
         pass
 
     def front_gap(self, other_raft):
-        pass
+        '''Returns min distance and perpendicular unit vector from closest segment on this
+        raft's front polygon toward corresponding closest point on "other" raft.'''
+        return Raft.poly_gap(other.front_poly, self.front_poly)
 
     def rear_gap(self, other_raft):
-        pass
+        '''Returns min distance and perpendicular unit vector from closest segment on this
+        raft's front polygon toward corresponding closest point on "other" raft.'''
+        return Raft.poly_gap(other.rear_poly, self.rear_poly)
 
     @staticmethod
     def poly_gap(poly1, poly2):
@@ -200,18 +238,6 @@ class Raft:
         t = (dx_B * (A1[1] - B1[1]) + dy_B * (B1[0] - A1[0])) / (-delta)
         return (0 <= s <= 1) and (0 <= t <= 1)
 
-
-
-basic_raft_x = [-B/2,  0, B/2]
-basic_raft_x += [basic_raft_x[0]]
-basic_raft_y = [-h2, h3, -h2]
-basic_raft_y += [basic_raft_y[0]]
-basic_raft_z = [0]*len(basic_raft_x)
-basic_raft_x += basic_raft_x
-basic_raft_y += basic_raft_y
-basic_raft_z += [L]*len(basic_raft_z)
-
-# for use later, to calculate distance between trian
 
 # nominal spacing between triangles
 spacing_rear = userargs.raft_rear_gap + 2*h2
