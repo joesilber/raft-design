@@ -50,7 +50,7 @@ focsurf_numbers = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface', type=int, default=1, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
+parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
@@ -297,8 +297,7 @@ t = Table(names=['x', 'y',  'z', 'radius', 'precession', 'nutation', 'spin0', 's
 
 # pattern row 1
 t.add_row({'x': 68, 'y': 56, 'spin0': 180})
-t.add_row({'x': 80,#116, 
-'y': 28, 'spin0': 0})
+t.add_row({'x': 80, 'y': 28, 'spin0': 0})
 t.add_row({'x': 166, 'y': 56, 'spin0': 180})
 t.add_row({'x': 216, 'y': 28, 'spin0': 0})
 t.add_row({'x': 266, 'y': 56, 'spin0': 180})
