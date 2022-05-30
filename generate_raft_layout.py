@@ -103,7 +103,7 @@ concavity = np.sign(rz_ctr[1])  # +1 --> concave, -1 --> convex
 # basic raft outline
 RB = userargs.raft_tri_base
 RL = userargs.raft_length
-RH = userargs.raft_chamfer
+RC = userargs.raft_chamfer
 h1 = RB * 3**0.5 / 2  # height from base of triangle to opposite tip
 h2 = RB / 3**0.5 / 2 # height from base of triangle to center
 h3 = h1 - h2  # height from center of triangle to tip
@@ -117,15 +117,6 @@ raft_targetable_area = RB**2/2 - 3*RC**2/2
 above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= concavity  # apply sign for concave vs convex focal surface
-
-basic_raft_x += [basic_raft_x[0]]
-basic_raft_y = [-h2, h3, -h2]
-basic_raft_y += [basic_raft_y[0]]
-basic_raft_z = [0]*len(basic_raft_x)
-basic_raft_x += basic_raft_x
-basic_raft_y += basic_raft_y
-basic_raft_z += [RL]*len(basic_raft_z)
-
 
 class Raft:
     '''Represents a single triangular raft.'''
@@ -161,7 +152,7 @@ class Raft:
         return R2NUT(R)
     
     @property
-    def spin(self)
+    def spin(self):
         '''rotation [deg] about raft's local z-axis, *including* compensation for
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
         return self.spin0 - self.precession
@@ -276,7 +267,7 @@ class Raft:
 
 # nominal spacing between triangles
 spacing_rear = userargs.raft_rear_gap + 2*h2
-spacing_front = spacing_rear * sphR / (sphR - L)
+spacing_front = spacing_rear * sphR / (sphR - RL)
 crd_margin = lambda radius: sphR * math.radians(abs(R2CRD(radius + spacing_front) - R2CRD(radius)))
 
 # wedge envelope geometry
@@ -348,12 +339,8 @@ print(f'Saved table to {os.path.abspath(filename)}')
 fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
 ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
-for row in t:
-    basic = np.transpose([basic_raft_x, basic_raft_y, basic_raft_z])
-    r = Rotation.from_euler('ZYZ',(row['precession'], row['nutation'], row['spin']), degrees=True)
-    rotated = r.apply(basic)
-    translated = rotated + [row['x'], row['y'], row['z']]
-    f = np.transpose(translated)
+for raft in rafts:
+    f = np.transpose(raft.poly3d)
     ax.plot(f[0], f[1], f[2], '-')
 
 # plot envelope
