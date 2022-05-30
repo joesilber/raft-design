@@ -219,15 +219,16 @@ class Raft:
             s0 = np.array(seg[0])
             s1 = np.array(seg[1])
             seg_vec = s1 - s0
-            seg_mag = np.sqrt(np.sum(np.power(seg_vec, 2)))
+            seg_mag = np.sqrt(seg_vec.dot(seg_vec))
             seg_unit = seg_vec / seg_mag
             for pt in test_pts:
-                dist = np.dot(pt - s0, seg_unit)
-                if dist < min_dist:
-                    min_dist = dist
-                    min_vec_start_pt = s0 + min_dist*seg_unit
-                    min_vec = pt - min_vec_start_pt
-        min_vec_unit = min_vec / min_dist
+                s2_mag = np.dot(pt - s0, seg_unit)
+                s2_vec = s2_mag * seg_unit
+                gap_vec = pt - s2_vec
+                gap_mag = np.sqrt(gap_vec.dot(gap_vec))
+                if gap_mag < min_dist:
+                    min_dist = gap_mag
+                    min_vec_unit = gap_vec / gap_mag
         return min_dist, min_vec_unit
 
     @staticmethod
@@ -328,9 +329,9 @@ for row in t:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
 
-gap1 = rafts[0].front_gap(rafts[1])
-gap2 = rafts[1].front_gap(rafts[0])
-gap3 = rafts[0].rear_gap([rafts[1]])
+m1, v1 = rafts[0].front_gap(rafts[1])
+m2, v2 = rafts[1].front_gap(rafts[0])
+m3, v3 = rafts[0].rear_gap(rafts[1])
 
 # print stats and write table
 t.pprint_all()
