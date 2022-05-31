@@ -54,8 +54,9 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.A
 parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add_argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
+parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
+parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -278,27 +279,16 @@ class Raft:
         return (0 <= s <= 1) and (0 <= t <= 1)
 
 
-# nominal spacing between triangles
-spacing_rear = userargs.raft_rear_gap + 2*h2
-spacing_front = spacing_rear * sphR / (sphR - RL)
-crd_margin = lambda radius: sphR * math.radians(abs(R2CRD(radius + spacing_front) - R2CRD(radius)))
-
-# wedge envelope geometry
-envelope_r_max = 416  # mm, max allowable mechanical envelope
-envelope_angle = 72  # deg
-outer_radius_plot_angles = np.radians(np.linspace(0, envelope_angle, 36))
-envelope_x = [0] + [envelope_r_max * math.cos(a) for a in outer_radius_plot_angles]
-envelope_x += [envelope_x[-1]] + [0]
-envelope_y = [0] + [envelope_r_max * math.sin(a) for a in outer_radius_plot_angles]
-envelope_y += [envelope_y[-1]] + [0]
-envelope_z = [0]*len(envelope_x)
-envelope_x += envelope_x
-envelope_y += envelope_y
-envelope_z += [-RL]*len(envelope_z)
-
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
-spacing_x = spacing_front
+is_convex = concavity > 0
+if is_convex:
+    rear_gap_projected = userargs.raft_gap * sphR / (sphR - RL)
+    crd_margin = max(np.abs(crd)) * RL
+    front_gap = rear_gap_projected + crd_margin
+else:
+    front_gap = userargs.raft_gap
+spacing_x = RB + front_gap
 spacing_y = spacing_x * math.sqrt(3)/2
 half_width_count = math.ceil(vigR / spacing_x) + 1
 rng = range(-half_width_count, half_width_count+1)
@@ -318,6 +308,27 @@ for j in rng:
     grid['x'] += [u + spacing_x/2 for u in x]
     grid['y'] += [v + spacing_y/3 for v in y]
     grid['spin0'] += [180]*len(x)
+
+# vignette & wedge envelope plottable geometry
+a = np.radians(np.linspace(0, userargs.wedge, 100))
+envelope_x = vigR * np.cos(a)
+envelope_y = vigR * np.sin(a)
+not_full_circle = abs(userargs.wedge) < 360
+if not_full_circle:
+    envelope_x = np.append(envelope_x, 0, vigR)
+    envelope_y = np.append(envelope_y, 0, 0)
+envelope_z = np.zeros_like(envelope_x)
+
+# vignette & wedge raft selection
+raft_position_radii = np.hypot(grid['x'], grid['y'])
+remove = raft_position_radii > vigR
+if not_full_circle:
+    raft_position_angles = np.arctan2(grid['y'], grid['x'])
+    remove &= raft_position_angles > max(0, userargs.wedge)
+    remove &= raft_position_angles < min(0, userargs.wedge)
+keep = np.logical_not(remove)
+for key in grid:
+    grid[key] = np.array(grid[key])[keep]
 
 # table structure for raft positions and orientations
 t = Table(grid)
@@ -354,10 +365,13 @@ t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}')
 
 # plot rafts
+max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
 fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
 ax = fig.add_subplot(projection='3d', proj_type='ortho')
 outlines = []
-for raft in rafts:
+for i, raft in enumerate(rafts):
+    if i >= max_rafts_to_plot:
+        break
     f = np.transpose(raft.poly3d)
     ax.plot(f[0], f[1], f[2], '-')
 
@@ -396,7 +410,7 @@ ax.set_proj_type('ortho')
 num_text = f'{n_rafts} rafts --> {n_robots} robots'
 plt.title(f'{timestamp}\n{num_text}')
 
-views = [(-114, 23), (-90, 90), (0, 0), (-90, 0)]
+views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52)]
 for i, view in enumerate(views):
     ax.azim = view[0]
     ax.elev = view[1]
