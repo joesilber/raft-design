@@ -116,7 +116,7 @@ z_guess = np.sign(np.mean(z)) * np.max(r) / np.radians(typical_fov/2)
 result = optimize.least_squares(fun=calc_sphR_err, x0=z_guess)
 z_ctr = float(result.x)
 sphR = abs(z_ctr)
-concavity = np.sign(z_ctr)  # +1 --> concave, -1 --> convex
+is_convex = np.sign(z_ctr) < 1  # convention where +z is toward the fiber tips
 
 # basic raft outline
 RB = userargs.raft_tri_base
@@ -134,7 +134,7 @@ raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 raft_targetable_area = RB**2/2 - 3*RC**2/2
 above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
-avg_focus_offset *= concavity  # apply sign for concave vs convex focal surface
+avg_focus_offset *= -1 if is_convex else +1
 
 class Raft:
     '''Represents a single triangular raft.'''
@@ -294,10 +294,9 @@ class Raft:
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
-is_convex = concavity > 0
 if is_convex:
-    rear_gap_projected = userargs.raft_gap * sphR / (sphR - RL)
-    crd_margin = max(np.abs(crd)) * RL
+    rear_gap_projected = (userargs.raft_gap + RB)/2 * sphR / (sphR - RL) - RB/2
+    crd_margin = math.radians(max(np.abs(crd))) * RL
     front_gap = rear_gap_projected + crd_margin
 else:
     front_gap = userargs.raft_gap
