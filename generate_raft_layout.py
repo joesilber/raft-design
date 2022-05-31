@@ -56,7 +56,9 @@ parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm,
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
-parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope')
+parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope')
+parser.add_argument('-xo', '--x_offset', type=float, default=42.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
+parser.add_argument('-yo', '--y_offset', type=float, default=25.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -294,10 +296,10 @@ half_width_count = math.ceil(vigR / spacing_x) + 1
 rng = range(-half_width_count, half_width_count+1)
 grid = {'x': [], 'y': [], 'spin0': []}
 for j in rng:
-    x = [spacing_x*i for i in rng]
+    x = [spacing_x*i + userargs.x_offset for i in rng]
     if j % 2:
         x = [u + spacing_x/2 for u in x]
-    y = [spacing_y * j]*len(x)
+    y = [spacing_y * j + userargs.y_offset]*len(x)
 
     # upward pointing triangles
     grid['x'] += x
@@ -315,17 +317,17 @@ envelope_x = vigR * np.cos(a)
 envelope_y = vigR * np.sin(a)
 not_full_circle = abs(userargs.wedge) < 360
 if not_full_circle:
-    envelope_x = np.append(envelope_x, 0, vigR)
-    envelope_y = np.append(envelope_y, 0, 0)
+    envelope_x = np.append(envelope_x, [0, vigR])
+    envelope_y = np.append(envelope_y, [0, 0])
 envelope_z = np.zeros_like(envelope_x)
 
 # vignette & wedge raft selection
 raft_position_radii = np.hypot(grid['x'], grid['y'])
 remove = raft_position_radii > vigR
 if not_full_circle:
-    raft_position_angles = np.arctan2(grid['y'], grid['x'])
-    remove &= raft_position_angles > max(0, userargs.wedge)
-    remove &= raft_position_angles < min(0, userargs.wedge)
+    raft_position_angles = np.degrees(np.arctan2(grid['y'], grid['x']))
+    remove |= raft_position_angles > max(0, userargs.wedge)
+    remove |= raft_position_angles < min(0, userargs.wedge)
 keep = np.logical_not(remove)
 for key in grid:
     grid[key] = np.array(grid[key])[keep]
