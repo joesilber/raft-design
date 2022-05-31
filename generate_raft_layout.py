@@ -11,10 +11,10 @@ from numpy.polynomial import Polynomial
 from astropy.table import Table
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 import scipy.interpolate as interpolate
+from scipy import optimize
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
-import fitcircle
 import argparse
 
 timestamp_fmt = '%Y%m%dT%H%M'
@@ -103,9 +103,20 @@ if not CRD2R_undefined:
     CRD2R = interp1d(crd, r)
 R2NUT = interp1d(r[:-1], nut)
 NUT2R = interp1d(nut, r[:-1])
-circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
-rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
-concavity = np.sign(rz_ctr[1])  # +1 --> concave, -1 --> convex
+
+# best-fit sphere
+calc_sphR = lambda z_ctr: (r**2 + (z - z_ctr)**2)**0.5
+def calc_sphR_err(z_ctr):
+    sphR_test = calc_sphR(z_ctr)
+    errors = sphR_test - np.mean(sphR_test)
+    scalar_error = np.sum(np.power(errors, 2))
+    return scalar_error
+typical_fov = 3.0  # deg
+z_guess = np.sign(np.mean(z)) * np.max(r) / np.radians(typical_fov/2)
+result = optimize.least_squares(fun=calc_sphR_err, x0=z_guess)
+z_ctr = float(result.x)
+sphR = abs(z_ctr)
+concavity = np.sign(z_ctr)  # +1 --> concave, -1 --> convex
 
 # basic raft outline
 RB = userargs.raft_tri_base
