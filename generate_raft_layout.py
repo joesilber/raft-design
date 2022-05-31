@@ -19,6 +19,7 @@ import argparse
 
 timestamp_fmt = '%Y%m%dT%H%M'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
+interp1d = lambda x, y: interpolate.interp1d(x, y, kind='cubic', bounds_error=False, fill_value='extrapolate')
 
 # GEOMETRY OF FOCAL SURFACE DESIGNS
 # ---------------------------------
@@ -65,11 +66,13 @@ if all(label in focsurf for label in {'Z', 'CRD'}):
     R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
 elif 'file' in focsurf:
     t = Table.read(focsurf['file'], comment='#')
-    R2Z = interpolate.interp1d(t['R'], t['Z'], kind='cubic')
+    R2Z = interp1d(t['R'], t['Z'])
     if 'CRD' in t:
-        R2CRD = interpolate.interp1d(t['R'], t['CRD'])
+        R2CRD = interp1d(t['R'], t['CRD'])
+        CRD2R_undefined = False
     else:
         R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
+        CRD2R_undefined = True
         print(f'WARNING: no chief ray deviation defined, letting CRD(R)=0')
 else:
     assert False, 'unrecognized geometry input data'
@@ -85,17 +88,18 @@ dzdr = dz / dr
 ds = (1 + dzdr**2)**0.5 * dr
 s = np.cumsum(ds)
 s = np.insert(s, 0, 0.)  # first value of path length is 0
-Z2R = interpolate.interp1d(z, r)
-R2S = interpolate.interp1d(r, s)
-S2R = interpolate.interp1d(s, r)
+Z2R = interp1d(z, r)
+R2S = interp1d(r, s)
+S2R = interp1d(s, r)
 norm = np.degrees(np.arctan(dzdr))
-R2NORM = interpolate.interp1d(r[:-1], norm)
-NORM2R = interpolate.interp1d(norm, r[:-1])
+R2NORM = interp1d(r[:-1], norm)
+NORM2R = interp1d(norm, r[:-1])
 crd = R2CRD(r)
 nut = - (norm + crd[:-1])
-CRD2R = interpolate.interp1d(crd, r)
-R2NUT = interpolate.interp1d(r[:-1], nut)
-NUT2R = interpolate.interp1d(nut, r[:-1])
+if not CRD2R_undefined:
+    CRD2R = interp1d(crd, r)
+R2NUT = interp1d(r[:-1], nut)
+NUT2R = interp1d(nut, r[:-1])
 circlefit_data = np.transpose([np.append(r, -r), np.append(z, z)])
 rz_ctr, sphR = fitcircle.FitCircle().fit(circlefit_data)  # best-fit sphere to (r, z)
 concavity = np.sign(rz_ctr[1])  # +1 --> concave, -1 --> convex
