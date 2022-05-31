@@ -51,7 +51,7 @@ focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
+parser.add_argument('-f', '--focal_surface_number', type=int, default=1, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
@@ -64,6 +64,7 @@ userargs = parser.parse_args()
 # set up geometry functions
 focsurf_name = focsurfs_index[userargs.focal_surface_number]
 focsurf = focal_surfaces[focsurf_name]
+CRD2R_undefined = False
 if all(label in focsurf for label in {'Z', 'CRD'}):
     R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
     R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
@@ -72,7 +73,6 @@ elif 'file' in focsurf:
     R2Z = interp1d(t['R'], t['Z'])
     if 'CRD' in t:
         R2CRD = interp1d(t['R'], t['CRD'])
-        CRD2R_undefined = False
     else:
         R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
         CRD2R_undefined = True
@@ -384,8 +384,8 @@ for i, row in enumerate(t):
         gap_rear, dir_gap_rear = rafts[i].rear_gap(rafts[j])
         gaps_front += [gap_front]
         gaps_rear += [gap_rear]
-    gaps['min_gap_front'] += [min(gaps_front)]
-    gaps['min_gap_rear'] += [min(gaps_rear)]
+    gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
+    gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
 for key, data in gaps.items():
     t[key] = data
 
