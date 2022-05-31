@@ -359,13 +359,24 @@ for row in t:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
 
-def print_gap(i, j):
-    m1, v1 = rafts[i].front_gap(rafts[j])
-    m2, v2 = rafts[i].rear_gap(rafts[j])
-    print(f'Front gap raft {i} --> {j} = {m1}, direction = {v1}')
-    print(f' Rear gap raft {i} --> {j} = {m2}, direction = {v2}')
-
-print_gap(0, 1)
+# assess gaps to neighbors
+gaps = {'min_gap_front': [], 'min_gap_rear': []}
+for i, row in enumerate(t):
+    dist = np.hypot(t['x'] - row['x'], t['y'] - row['y'])
+    neighbors = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
+    neighbors &= dist != 0  # skip self
+    neighbor_idxs = np.nonzero(neighbors)[0]
+    gaps_front = []
+    gaps_rear = []
+    for j in neighbor_idxs:
+        gap_front, dir_gap_front = rafts[i].front_gap(rafts[j])
+        gap_rear, dir_gap_rear = rafts[i].rear_gap(rafts[j])
+        gaps_front += [gap_front]
+        gaps_rear += [gap_rear]
+    gaps['min_gap_front'] += [min(gaps_front)]
+    gaps['min_gap_rear'] += [min(gaps_rear)]
+for key, data in gaps.items():
+    t[key] = data
 
 # print stats and write table
 t.pprint_all()
