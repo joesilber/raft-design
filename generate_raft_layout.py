@@ -56,9 +56,9 @@ parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm,
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
-parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope')
-parser.add_argument('-xo', '--x_offset', type=float, default=42.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
-parser.add_argument('-yo', '--y_offset', type=float, default=25.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
+parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
+parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
+parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -294,7 +294,7 @@ spacing_x = RB + front_gap
 spacing_y = spacing_x * math.sqrt(3)/2
 half_width_count = math.ceil(vigR / spacing_x) + 1
 rng = range(-half_width_count, half_width_count+1)
-grid = {'x': [], 'y': [], 'spin0': []}
+natural_grid = {'x': [], 'y': [], 'spin0': []}
 for j in rng:
     x = [spacing_x*i + userargs.x_offset for i in rng]
     if j % 2:
@@ -302,14 +302,24 @@ for j in rng:
     y = [spacing_y * j + userargs.y_offset]*len(x)
 
     # upward pointing triangles
-    grid['x'] += x
-    grid['y'] += y
-    grid['spin0'] += [0]*len(x)
+    natural_grid['x'] += x
+    natural_grid['y'] += y
+    natural_grid['spin0'] += [0]*len(x)
 
     # downward pointing triangles
-    grid['x'] += [u + spacing_x/2 for u in x]
-    grid['y'] += [v + spacing_y/3 for v in y]
-    grid['spin0'] += [180]*len(x)
+    natural_grid['x'] += [u + spacing_x/2 for u in x]
+    natural_grid['y'] += [v + spacing_y/3 for v in y]
+    natural_grid['spin0'] += [180]*len(x)
+
+# flatten grid from its natural, implicit, curved space of focal surface
+# to cartesian (where focal surface shape as function of radius applies)
+q = np.arctan2(natural_grid['y'], natural_grid['x'])
+s = np.hypot(natural_grid['x'], natural_grid['y'])
+r = S2R(s)
+grid = {'x': r * np.cos(q),
+        'y': r * np.sin(q),
+        'spin0': natural_grid['spin0'],
+        }
 
 # vignette & wedge envelope plottable geometry
 a = np.radians(np.linspace(0, userargs.wedge, 100))
