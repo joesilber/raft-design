@@ -47,11 +47,11 @@ focal_surfaces = {
         'vigR': 406.,
         },
     }
-focsurf_numbers = {i: name for i, name in enumerate(focal_surfaces)}
+focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurf_numbers}')
+parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_rear_gap', type=float, default=2.0, help='mm, gap between triangles at rear')
@@ -59,8 +59,8 @@ parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, c
 userargs = parser.parse_args()
 
 # set up geometry functions
-focsurf_number = focsurf_numbers[userargs.focal_surface]
-focsurf = focal_surfaces[focsurf_number]
+focsurf_name = focsurfs_index[userargs.focal_surface_number]
+focsurf = focal_surfaces[focsurf_name]
 if all(label in focsurf for label in {'Z', 'CRD'}):
     R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
     R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
@@ -348,7 +348,7 @@ print_gap(0, 1)
 t.pprint_all()
 n_rafts = len(rafts)
 n_robots = n_rafts*72
-basename = f'{timestamp}_desi2_layout_{n_rafts}rafts_{n_robots}robots'
+basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}')
@@ -392,14 +392,17 @@ ax.set_ylabel('y (mm)')
 ax.set_zlabel('z (mm)')
 ax.set_box_aspect([1, 1, 1])
 ax.set_proj_type('ortho')
-ax.azim = -114
-ax.elev = 23
 
 num_text = f'{n_rafts} rafts --> {n_robots} robots'
 plt.title(f'{timestamp}\n{num_text}')
 
-filename = basename + '.png'
-plt.savefig(filename)
-print(f'Plotted {num_text}.')
-print(f'Saved plot to {os.path.abspath(filename)}')
+views = [(-114, 23), (-90, 90), (0, 0), (-90, 0)]
+for i, view in enumerate(views):
+    ax.azim = view[0]
+    ax.elev = view[1]
+    filename = f'{basename}_view{i}.png'
+    plt.savefig(filename)
+    print(f'Saved plot to {os.path.abspath(filename)}')
+
+plt.show()
 
