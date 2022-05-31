@@ -295,12 +295,15 @@ class Raft:
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
 if is_convex:
-    rear_gap_projected = (userargs.raft_gap + RB)/2 * sphR / (sphR - RL) - RB/2
-    crd_margin = math.radians(max(np.abs(crd))) * RL
-    front_gap = rear_gap_projected + crd_margin
+    coarse_r = np.arange(0, vigR, RB)
+    coarse_crd = R2CRD(coarse_r)
+    delta_crd_rad = np.radians(np.diff(coarse_crd))
+    max_delta_crd_rad = max(delta_crd_rad)
+    delta_gap_rad = (userargs.raft_gap + RB) / (sphR - RL)
+    front_gap = (max_delta_crd_rad + delta_gap_rad) * sphR - RB
 else:
     front_gap = userargs.raft_gap
-spacing_x = RB + front_gap
+spacing_x = RB + front_gap / (math.sqrt(3)/2)
 spacing_y = spacing_x * math.sqrt(3)/2
 half_width_count = math.ceil(vigR / spacing_x) + 1
 rng = range(-half_width_count, half_width_count+1)
@@ -443,13 +446,10 @@ ax.set_proj_type('ortho')
 num_text = f'{n_rafts} rafts --> {n_robots} robots'
 plt.title(f'{timestamp}\n{num_text}')
 
-views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52)]
+views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
 for i, view in enumerate(views):
     ax.azim = view[0]
     ax.elev = view[1]
     filename = f'{basename}_view{i}.png'
     plt.savefig(filename)
     print(f'Saved plot to {os.path.abspath(filename)}')
-
-plt.show()
-
