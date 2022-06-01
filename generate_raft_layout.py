@@ -388,24 +388,28 @@ for raft in rafts:
     neighbor_selection_ids = np.nonzero(neighbor_selection)[0]
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 
-# assess gaps to neighbors
-#def calc_gaps(rafts
-gaps = {'id': [], 'raft': [], 'min_gap_front': [], 'min_gap_rear': []}
-for raft in rafts:
-    gaps_front = []
-    gaps_rear = []
-    for neighbor in raft.neighbors:
-        gap_front, dir_gap_front = raft.front_gap(neighbor)
-        gap_rear, dir_gap_rear = raft.rear_gap(neighbor)
-        gaps_front += [gap_front]
-        gaps_rear += [gap_rear]
-    gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
-    gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
-    gaps['id'] += [raft.id]
-    gaps['raft'] += [raft]
+# function to assess all gaps to neighbors
+def calc_gaps():
+    gaps = {'id': [], 'raft': [], 'min_gap_front': [], 'min_gap_rear': []}
+    for raft in rafts:
+        gaps_front = []
+        gaps_rear = []
+        for neighbor in raft.neighbors:
+            gap_front, dir_gap_front = raft.front_gap(neighbor)
+            gap_rear, dir_gap_rear = raft.rear_gap(neighbor)
+            gaps_front += [gap_front]
+            gaps_rear += [gap_rear]
+        gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
+        gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
+        gaps['id'] += [raft.id]
+        gaps['raft'] += [raft]
+        gaps_table = Table(gaps)
+    return gaps_table
+
+
 
 # print stats and write table
-gaps_table = Table(gaps)
+gaps_table = calc_gaps()
 gaps_table.sort('id')
 t.sort('id')
 for key in ['min_gap_front', 'min_gap_rear']:
