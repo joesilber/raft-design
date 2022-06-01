@@ -136,6 +136,7 @@ above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. 
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= -1 if is_convex else +1
 
+_raft_id_counter = 0
 class Raft:
     '''Represents a single triangular raft.'''
     
@@ -145,6 +146,9 @@ class Raft:
         y ... [mm] y location of center of front triangle
         spin0 ... [deg] rotation of triangle, *not* including precession compensation
         '''
+        global _raft_id_counter
+        self.id = _raft_id_counter
+        _raft_id_counter += 1
         self.x = x
         self.y = y
         self.spin0 = spin0
@@ -364,10 +368,9 @@ for key in grid:
 
 # table structure for raft positions and orientations
 t = Table(grid)
-other_cols = ['z', 'radius', 'precession', 'nutation', 'spin']
+other_cols = ['z', 'radius', 'precession', 'nutation', 'spin', 'id']
 for col in other_cols:
     t[col] = [0]*len(t)
-t['id'] = range(len(t))
 
 # generate raft instances
 rafts = []
@@ -379,6 +382,7 @@ for row in t:
     row['precession'] = raft.precession
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
+    row['id'] = raft.id
 
 # determine neighbors
 neighbors = []
@@ -390,7 +394,8 @@ for row in t:
 t['neighbor_ids'] = neighbors
 
 # assess gaps to neighbors
-gaps = {'min_gap_front': [], 'min_gap_rear': []}
+#def calc_gaps(rafts
+gaps = {'id': [], 'min_gap_front': [], 'min_gap_rear': []}
 for row in t:
     gaps_front = []
     gaps_rear = []
@@ -402,6 +407,10 @@ for row in t:
         gaps_rear += [gap_rear]
     gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
     gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
+    gaps['id'] += [row['id']]
+
+
+
 for key, data in gaps.items():
     t[key] = data
 
