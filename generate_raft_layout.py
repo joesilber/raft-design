@@ -399,18 +399,28 @@ def calc_gaps():
             gap_rear, dir_gap_rear = raft.rear_gap(neighbor)
             gaps_front += [gap_front]
             gaps_rear += [gap_rear]
-        gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
-        gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
+        gaps['min_gap_front'] += [0 if None in gaps_front else min(gaps_front)]
+        gaps['min_gap_rear'] += [0 if None in gaps_rear else min(gaps_rear)]
         gaps['id'] += [raft.id]
         gaps['raft'] += [raft]
         gaps_table = Table(gaps)
     return gaps_table
 
+### break out the neighbor calcs so can just do a set of neighbors
+### include main table in the program so that it can be updated
 
+# iteratively squeeze the pattern for more optimal close-packing
+max_iters = 10 * len(rafts)
+goal_delta = 0.1  # mm
+for iter in range(max_iters):
+    gaps = calc_gaps()
+    biggest_gap = gaps.sort(['min_gap_front', 'min_gap_rear'], reverse=True)
+    if delta < goal_delta:
+        break
 
 # print stats and write table
-gaps_table = calc_gaps()
-gaps_table.sort('id')
+gaps = calc_gaps()
+gaps.sort('id')
 t.sort('id')
 for key in ['min_gap_front', 'min_gap_rear']:
     t[key] = gaps_table[key]
