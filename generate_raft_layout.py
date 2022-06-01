@@ -152,6 +152,7 @@ class Raft:
         self.x = x
         self.y = y
         self.spin0 = spin0
+        self.neighbors = []
 
     @property
     def r(self):
@@ -377,47 +378,51 @@ rafts = []
 for row in t:
     raft = Raft(x=row['x'], y=row['y'], spin0=row['spin0'])
     rafts += [raft]
+    row['id'] = raft.id
+
+# determine neighbors
+for raft in rafts:
+    dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
+    neighbor_selection = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
+    neighbor_selection &= raft.id != t['id']  # skip self
+    neighbor_selection_ids = np.nonzero(neighbor_selection)[0]
+    raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
+
+# assess gaps to neighbors
+#def calc_gaps(rafts
+gaps = {'id': [], 'raft': [], 'min_gap_front': [], 'min_gap_rear': []}
+for raft in rafts:
+    gaps_front = []
+    gaps_rear = []
+    for neighbor in raft.neighbors:
+        gap_front, dir_gap_front = raft.front_gap(neighbor)
+        gap_rear, dir_gap_rear = raft.rear_gap(neighbor)
+        gaps_front += [gap_front]
+        gaps_rear += [gap_rear]
+    gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
+    gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
+    gaps['id'] += [raft.id]
+    gaps['raft'] += [raft]
+
+# print stats and write table
+gaps_table = Table(gaps)
+gaps_table.sort('id')
+t.sort('id')
+for key in ['min_gap_front', 'min_gap_rear']:
+    t[key] = gaps_table[key]
+for raft in rafts:
+    row_idx = int(np.nonzero(t['id'] == raft.id)[0])
+    row = t[row_idx]
     row['radius'] = raft.r
     row['z'] = raft.z
     row['precession'] = raft.precession
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
     row['id'] = raft.id
-
-# determine neighbors
-neighbors = []
-for row in t:
-    dist = np.hypot(t['x'] - row['x'], t['y'] - row['y'])
-    neighbor_selection = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
-    neighbor_selection &= row['id'] != t['id']  # skip self
-    neighbors += [t['id'][neighbor_selection].tolist()]
-t['neighbor_ids'] = neighbors
-
-# assess gaps to neighbors
-#def calc_gaps(rafts
-gaps = {'id': [], 'min_gap_front': [], 'min_gap_rear': []}
-for row in t:
-    gaps_front = []
-    gaps_rear = []
-    i = row['id']
-    for j in row['neighbor_ids']:
-        gap_front, dir_gap_front = rafts[i].front_gap(rafts[j])
-        gap_rear, dir_gap_rear = rafts[i].rear_gap(rafts[j])
-        gaps_front += [gap_front]
-        gaps_rear += [gap_rear]
-    gaps['min_gap_front'] += [None if None in gaps_front else min(gaps_front)]
-    gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
-    gaps['id'] += [row['id']]
-
-
-
-for key, data in gaps.items():
-    t[key] = data
-
-# convert neighbor id lists to something csv-compatible
-t['neighbor_ids'] = ['-'.join(str(s) for s in n) for n in t['neighbor_ids']]
-
-# print stats and write table
+neighbor_ids = []
+for raft in rafts:
+    neighbor_ids += ['-'.join(str(n.id) for n in raft.neighbors)]
+t['neighbor_ids'] = neighbor_ids
 t.pprint_all()
 n_rafts = len(rafts)
 n_robots = n_rafts*72
