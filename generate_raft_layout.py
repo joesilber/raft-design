@@ -295,6 +295,11 @@ class Raft:
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
 if is_convex:
+    # JHS 2022-05-31: This estimation for front gap is simple and conservative.
+    # A more efficient algorithm would use the appropriate delta_crd for each
+    # raft's particular radial position, rather than uniformly assuming worst-case
+    # chief ray deviation. Should definitely address this before producing any
+    # final layout for a *convex* focal surface (such as DESI's Echo22 corrector).
     coarse_r = np.arange(0, vigR, RB)
     coarse_crd = R2CRD(coarse_r)
     delta_crd_rad = np.radians(np.diff(coarse_crd))
