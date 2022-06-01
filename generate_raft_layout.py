@@ -51,10 +51,10 @@ focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface_number', type=int, default=1, help=f'select focal surface design by number, valid options are {focsurfs_index}')
+parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
+parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
@@ -307,7 +307,9 @@ if is_convex:
     delta_gap_rad = (userargs.raft_gap + RB) / (sphR - RL)
     front_gap = (max_delta_crd_rad + delta_gap_rad) * sphR - RB
 else:
-    front_gap = userargs.raft_gap
+    delta_gap_rad = userargs.raft_gap / sphR
+    bidirectional_total_angle = math.acos(math.cos(delta_gap_rad)**2)
+    front_gap = sphR * bidirectional_total_angle
 spacing_x = RB + front_gap / (math.sqrt(3)/2)
 spacing_y = spacing_x * math.sqrt(3)/2
 half_width_count = math.ceil(vigR / spacing_x) + 1
