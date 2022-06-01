@@ -367,6 +367,7 @@ t = Table(grid)
 other_cols = ['z', 'radius', 'precession', 'nutation', 'spin']
 for col in other_cols:
     t[col] = [0]*len(t)
+t['id'] = range(len(t))
 
 # generate raft instances
 rafts = []
@@ -379,16 +380,22 @@ for row in t:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
 
+# determine neighbors
+neighbors = []
+for row in t:
+    dist = np.hypot(t['x'] - row['x'], t['y'] - row['y'])
+    neighbor_selection = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
+    neighbor_selection &= row['id'] != t['id']  # skip self
+    neighbors += [t['id'][neighbor_selection].tolist()]
+t['neighbor_ids'] = neighbors
+
 # assess gaps to neighbors
 gaps = {'min_gap_front': [], 'min_gap_rear': []}
-for i, row in enumerate(t):
-    dist = np.hypot(t['x'] - row['x'], t['y'] - row['y'])
-    neighbors = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
-    neighbors &= dist != 0  # skip self
-    neighbor_idxs = np.nonzero(neighbors)[0]
+for row in t:
     gaps_front = []
     gaps_rear = []
-    for j in neighbor_idxs:
+    i = row['id']
+    for j in row['neighbor_ids']:
         gap_front, dir_gap_front = rafts[i].front_gap(rafts[j])
         gap_rear, dir_gap_rear = rafts[i].rear_gap(rafts[j])
         gaps_front += [gap_front]
@@ -397,6 +404,9 @@ for i, row in enumerate(t):
     gaps['min_gap_rear'] += [None if None in gaps_rear else min(gaps_rear)]
 for key, data in gaps.items():
     t[key] = data
+
+# convert neighbor id lists to something csv-compatible
+t['neighbor_ids'] = ['-'.join(str(s) for s in n) for n in t['neighbor_ids']]
 
 # print stats and write table
 t.pprint_all()
