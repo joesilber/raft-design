@@ -392,6 +392,9 @@ for raft in rafts:
     neighbor_selection &= raft.id != t['id']  # skip self
     neighbor_selection_ids = np.flatnonzero(neighbor_selection)
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
+neighbor_counts = {raft.id: len(raft.neighbors) for raft in rafts}
+too_many_neighbors = {id: count for id, count in neighbor_counts.items() if count > 6}
+assert not(too_many_neighbors), f'non-physical number of neighbors detected. RAFT_ID:COUNT = {too_many_neighbors}'
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
@@ -495,14 +498,14 @@ for iter in range(max_iters):
         if count % display_period == 0 or count == len(moveable_rafts) - 1:
             print(f'Iteration {iter}: Nudges applied through raft {count + 1} of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
     all_errors = upper_errors + lower_errors
-    worst_abs_error = max(np.abs())
+    worst_abs_error = max(np.abs(all_errors))
     rms_error = np.sqrt(np.sum(np.power(all_errors, 2))/len(all_errors))
-    print(f'Nudge iteration {iter} complete. Worst case abs gap error = {worst_abs_error:.3f} mm, RMS error = {rms_error:.3f} mm...')
+    print(f'Nudge iteration {iter} complete. Worst case abs gap error = {worst_abs_error:.3f} mm, rms error = {rms_error:.3f} mm...')
     if worst_abs_error <= nudge_tol:
         print(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
-        print(f'Nudging halted after max iterations ({iter + 1})')
+        print(f'Nudging halted after max ({iter + 1}) iterations.')
         break
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
