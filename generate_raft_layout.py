@@ -604,10 +604,10 @@ for i, raft in enumerate(rafts):
     if i >= max_rafts_to_plot:
         break
     f = np.transpose(raft.poly3d)
-    ax.plot(f[0], f[1], f[2], '-')
+    ax.plot(f[0], f[1], f[2], '-', linewidth=0.7)
 
 # plot envelope
-ax.plot(envelope_x, envelope_y, envelope_z, 'k--')
+ax.plot(envelope_x, envelope_y, envelope_z, 'k--', linewidth=1.0)
 
 # from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
 def set_axes_equal(ax):
