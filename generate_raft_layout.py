@@ -69,7 +69,7 @@ parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, c
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
 parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
-parser.add_argument('-i', '--max_iters', type=int, default=10, help='maximum iterations for optimization of layout')
+parser.add_argument('-i', '--max_iters', type=int, default=4, help='maximum iterations for optimization of layout')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -214,6 +214,22 @@ class Raft:
             poly3d += [rear[i], rear[i+1], front[i+1]]
         poly3d += [rear[i+1], rear[0]]
         return poly3d
+
+    @property
+    def max_vertex_radius(self):
+        '''maximum distance from the z-axis of any point in the 3d raft polygon'''
+        return max(self._vertex_radii)
+
+    @property
+    def min_vertex_radius(self):
+        '''minimum distance from the z-axis of any point in the 3d raft polygon'''
+        return min(self._vertex_radii)
+
+    @property
+    def _vertex_radii(self):
+        '''return distances of all points in the 3d raft polygon from the z-axis'''
+        all_points = np.transpose(self.poly3d)
+        return np.hypot(all_points[0], all_points[1])
 
     def front_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
@@ -383,9 +399,9 @@ for key in grid:
 t = Table(grid)
 t['radius'] = np.hypot(t['x'], t['y'])
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
-other_cols = ['z', 'precession', 'nutation', 'spin', 'id']
-for col in other_cols:
-    t[col] = [0]*len(t)
+other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int, 'max_vertex_radius': float}
+for col, typecast in other_cols.items():
+    t[col] = [typecast(0)]*len(t)
 
 # generate raft instances
 rafts = []
@@ -448,7 +464,7 @@ def print_stats(table, column_keys):
         s = f'For "{key}" column:'
         for name, func in statfuncs.items():
             s += f'\n  {name:>6} = {func(table[key]):.3f}'
-    logger.info(s)
+        logger.info(s)
 
 def calc_and_print_gaps(rafts, return_type='table'):
     '''verbose combination of gap calculation and printing stats'''
@@ -559,11 +575,12 @@ for raft in rafts:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
     row['id'] = raft.id
+    row['max_vertex_radius'] = raft.max_vertex_radius
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
-t_str = '\n'.join(t.pformat_all())
+t_str = '\n' + '\n'.join(t.pformat_all())
 logger.info(t_str)
 n_rafts = len(rafts)
 n_robots = n_rafts*72
@@ -571,8 +588,9 @@ basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 logger.info(f'Saved table to {os.path.abspath(filename)}')
-print_stats(table, gap_mag_keys + ['radius'])
-print_stats()
+print_stats(t, gap_mag_keys + ['radius'])
+logger.info(f'Maximum radius of any vertex in any polygon is {t["max_vertex_radius"].max()} mm'
+            f' on raft {t[t["max_vertex_radius"].argmax()]["id"]}.')
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
@@ -625,7 +643,7 @@ for i, view in enumerate(views):
     ax.azim = view[0]
     ax.elev = view[1]
     filename = f'{basename}_view{i}.png'
-    filepath = os.path.join(logpath, filename)
+    filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
     logger.info(f'Saved 3D plot to {filepath}')
 
@@ -644,7 +662,7 @@ for key, data in convergence_params.items():
     plt.grid(True)
 plt.suptitle(f'raft layout convergence parameters\nall units mm')
 filename = f'{basename}_convergence.png'
-filepath = os.path.join(logpath, filename)
+filepath = os.path.join(logdir, filename)
 plt.savefig(filepath)
 logger.info(f'Saved convergence plot to {filepath}')
 
