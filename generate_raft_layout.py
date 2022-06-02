@@ -494,14 +494,16 @@ for iter in range(max_iters):
         lower_errors += [gaps[f'min_gap_{primary}'][0] - userargs.raft_gap]
         if count % display_period == 0 or count == len(moveable_rafts) - 1:
             print(f'Iteration {iter}: Nudges applied through raft {count + 1} of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
-    worst_abs_error = max(np.abs(upper_errors + lower_errors))
+    all_errors = upper_errors + lower_errors
+    worst_abs_error = max(np.abs())
+    rms_error = np.sqrt(np.sum(np.power(all_errors, 2))/len(all_errors))
+    print(f'Nudge iteration {iter} complete. Worst case abs gap error = {worst_abs_error:.3f} mm, RMS error = {rms_error:.3f} mm...')
     if worst_abs_error <= nudge_tol:
-        print(f'Nudging complete with worst case abs gap error {worst_abs_error:.3f} mm after {iter + 1} iterations.')
+        print(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
-        print(f'Nudging complete after {max_iters} iterations, though worst case abs gap error {worst_abs_error:.3f} mm > tolerance {nudge_tol}.')
+        print(f'Nudging halted after max iterations ({iter + 1})')
         break
-    print(f'Nudge iteration {iter} complete. Worst case abs gap error = {worst_abs_error:.3f}...')
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
 # print stats and write table
