@@ -465,7 +465,8 @@ def update_gaps(maintable, subtable):
 # iteratively nudge the rafts toward each other for more optimal close-packing
 max_iters = 200
 display_period = math.ceil(len(rafts) / 10)
-nudge_factor = 0.2  # fraction of gap error to nudge by on each iteration
+nudge_factor = {'min': 0.4,  # fraction to nudge the smallest of a given polygon's gap errors to neighbors on each iteration
+                'max': 0.2}  # fraction to nudge the largest etc...
 nudge_tol = 0.05  # mm, with respect to desired gap error
 convergence_criterion = 0.05  # mm
 convergence_params = {'max_radius': [], 'max_gap': [], 'min_gap': []}
@@ -490,7 +491,8 @@ for iter in range(max_iters):
             if abs(error) <= nudge_tol:
                 break
             direction_vector = gaps[vec_key][0]  # results in a 1x3 vector. the zero index here is to pull the vector out of its enclosing list
-            nudge_vec = error * nudge_factor * direction_vector
+            nf_key = 'min' if 'min' in mag_key else 'max'
+            nudge_vec = error * nudge_factor[nf_key] * direction_vector
             raft.x += nudge_vec[0]
             raft.y += nudge_vec[1]
             gaps = calc_gaps(raft, return_type='dict')
