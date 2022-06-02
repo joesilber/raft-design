@@ -8,6 +8,7 @@ Contact: Joe Silber, jhsilber@lbl.gov
 import time
 start_time = time.perf_counter()
 
+from datetime import datetime
 import math
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -17,13 +18,18 @@ import scipy.interpolate as interpolate
 from scipy import optimize
 import matplotlib.pyplot as plt
 import os
-from datetime import datetime
 import argparse
-
+import simple_logger
 
 timestamp_fmt = '%Y%m%dT%H%M'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
 interp1d = lambda x, y: interpolate.interp1d(x, y, kind='cubic', bounds_error=False, fill_value='extrapolate')
+
+logdir = os.getcwd()
+logname = f'{timestamp}_generate_raft_layout.log'
+logpath = os.path.join(logdir, logname)
+logger, _, _ = simple_logger.start_logger(logpath)
+logger.info(f'Logging to {logpath}.')
 
 # GEOMETRY OF FOCAL SURFACE DESIGNS
 # ---------------------------------
@@ -63,6 +69,7 @@ parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, c
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
 parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
+parser.add_argument('-i', '--max_iters', type=int, default=10, help='maximum iterations for optimization of layout')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -80,7 +87,7 @@ elif 'file' in focsurf:
     else:
         R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
         CRD2R_undefined = True
-        print(f'WARNING: no chief ray deviation defined, letting CRD(R)=0')
+        logger.warning(f'no chief ray deviation defined, letting CRD(R)=0')
 else:
     assert False, 'unrecognized geometry input data'
 vigR = focsurf['vigR']  # should be a scalar
@@ -144,7 +151,7 @@ _raft_id_counter = 0
 class Raft:
     '''Represents a single triangular raft.'''
     
-    def __init__(self, x=0, y=0, spin0=0):
+    def __init__(self, x=0., y=0., spin0=0.):
         '''
         x ... [mm] x location of center of front triangle
         y ... [mm] y location of center of front triangle
@@ -167,7 +174,7 @@ class Raft:
     def z(self):
         '''z position [mm] of center of raft at front'''
         offset_correction = avg_focus_offset * math.cos(math.radians(self.nutation))
-        return R2Z(self.r) + offset_correction
+        return float(R2Z(self.r)) + offset_correction
 
     @property
     def precession(self):
@@ -177,13 +184,13 @@ class Raft:
     @property
     def nutation(self):
         '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
-        return R2NUT(self.r)
+        return float(R2NUT(self.r))
     
     @property
     def spin(self):
         '''rotation [deg] about raft's local z-axis, *including* compensation for
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
-        return self.spin0 - self.precession
+        return float(self.spin0 - self.precession)
 
     @property
     def front_poly(self):
@@ -334,12 +341,12 @@ for j in rng:
     # upward pointing triangles
     natural_grid['x'] += x
     natural_grid['y'] += y
-    natural_grid['spin0'] += [0]*len(x)
+    natural_grid['spin0'] += [0.]*len(x)
 
     # downward pointing triangles
     natural_grid['x'] += [u + spacing_x/2 for u in x]
     natural_grid['y'] += [v + spacing_y/3 for v in y]
-    natural_grid['spin0'] += [180]*len(x)
+    natural_grid['spin0'] += [180.]*len(x)
 
 # flatten grid from its natural, implicit, curved space of focal surface
 # to cartesian (where focal surface shape as function of radius applies)
@@ -436,19 +443,19 @@ def calc_gaps(rafts, return_type='table'):
         assert False, f'unrecognized return_type = {return_type}'
 
 statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
-def print_gap_stats(gaps_table):
-    for key in gap_mag_keys:
-        print(f'For "{key}" column:')
+def print_stats(table, column_keys):
+    for key in column_keys:
+        s = f'For "{key}" column:'
         for name, func in statfuncs.items():
-            print(f'  {name:>6} = {func(gaps_table[key]):.3f}')
-        print('')
+            s += f'\n  {name:>6} = {func(table[key]):.3f}'
+    logger.info(s)
 
 def calc_and_print_gaps(rafts, return_type='table'):
     '''verbose combination of gap calculation and printing stats'''
     gap_timer = time.perf_counter()
     gaps = calc_gaps(rafts, return_type=return_type)
-    print(f'\nCalculated gaps for {len(rafts)} rafts in {time.perf_counter() - gap_timer:.2f} sec.\n')
-    print_gap_stats(gaps)
+    logger.info(f'Calculated gaps for {len(rafts)} rafts in {time.perf_counter() - gap_timer:.2f} sec.')
+    print_stats(gaps, gap_mag_keys)
     return gaps
 
 # global table of gaps between rafts
@@ -463,10 +470,10 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 200
+max_iters = userargs.max_iters
 display_period = math.ceil(len(rafts) / 10)
-nudge_factor = {'min': 0.4,  # fraction to nudge the smallest of a given polygon's gap errors to neighbors on each iteration
-                'max': 0.2}  # fraction to nudge the largest etc...
+nudge_factor = {'min': 0.6,  # fraction to nudge the smallest of a given polygon's gap errors to neighbors on each iteration
+                'max': 0.3}  # fraction to nudge the largest etc...
 nudge_tol = 0.05  # mm, with respect to desired gap error
 convergence_criterion = 0.05  # mm
 convergence_criterion_repeats = 3  # number of successive iterations where all convergence params must change by no more than criterion
@@ -478,9 +485,9 @@ nudge_attempt_keys = {mag_key: f'{mag_key}_vec' for mag_key in nudge_attempt_ord
 rafts_radii = [raft.r for raft in rafts]
 fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
 moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
-print('Beginning nudging.')
-print(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
-print(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
+logger.info('Beginning nudging.')
+logger.info(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
+logger.info(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
 for iter in range(max_iters):
     upper_gap_mags, lower_gap_mags, these_raft_radii = [], [], []
     nudge_order = np.argsort([raft.r for raft in moveable_rafts]).tolist()  # sets the order of nudging to be from the outermost raft inward
@@ -508,8 +515,8 @@ for iter in range(max_iters):
         lower_gap_mags += [gaps[f'min_gap_{primary}'][0]]
         these_raft_radii += [raft.r]
         if count % display_period == 0 or count == len(moveable_rafts) - 1:
-            print(f'Iteration {iter}: Nudges applied through raft {count + 1} '
-                  f'of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
+            logger.info(f'Iteration {iter}: Nudges applied through raft {count + 1}'
+                       f' of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
     these_gaps = upper_gap_mags + lower_gap_mags
     convergence_params['max_radius'] += [max(these_raft_radii)]
     convergence_params['max_gap'] += [max(these_gaps)]
@@ -524,15 +531,15 @@ for iter in range(max_iters):
     s = f'Nudge iteration {iter} complete.'
     for key in convergence_params:
         s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
-    print(s)
+    logger.info(s)
     num_deltas_per_param = len(deltas_list)
     if all(np.abs(convergence_deltas_merged) <= convergence_criterion) and num_deltas_per_param >= convergence_criterion_repeats:
-        print(f'Last {num_deltas_per_param} convergence parameters all changed by <= criterion {convergence_criterion} '
-              f'for all parameters {tuple(convergence_params)}.')
-        print(f'Nudging complete after {iter + 1} iterations.')
+        logger.info(f'Last {num_deltas_per_param} convergence parameters all changed by <= criterion {convergence_criterion}'
+                   f' for all parameters {tuple(convergence_params)}.')
+        logger.info(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
-        print(f'Nudging halted without passing convergence criteria after max ({iter + 1}) iterations.')
+        logger.info(f'Nudging halted without passing convergence criteria after max ({iter + 1}) iterations.')
         break
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
@@ -556,14 +563,16 @@ neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
-t.pprint_all()
+t_str = '\n'.join(t.pformat_all())
+logger.info(t_str)
 n_rafts = len(rafts)
 n_robots = n_rafts*72
 basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
-print(f'Saved table to {os.path.abspath(filename)}\n')
-print_gap_stats(global_gaps)
+logger.info(f'Saved table to {os.path.abspath(filename)}')
+print_stats(table, gap_mag_keys + ['radius'])
+print_stats()
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
@@ -616,8 +625,9 @@ for i, view in enumerate(views):
     ax.azim = view[0]
     ax.elev = view[1]
     filename = f'{basename}_view{i}.png'
-    plt.savefig(filename)
-    print(f'Saved 3D plot to {os.path.abspath(filename)}')
+    filepath = os.path.join(logpath, filename)
+    plt.savefig(filepath)
+    logger.info(f'Saved 3D plot to {filepath}')
 
 plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
 i = 0
@@ -634,7 +644,8 @@ for key, data in convergence_params.items():
     plt.grid(True)
 plt.suptitle(f'raft layout convergence parameters\nall units mm')
 filename = f'{basename}_convergence.png'
-plt.savefig(filename)
-print(f'Saved convergence plot to {os.path.abspath(filename)}')
+filepath = os.path.join(logpath, filename)
+plt.savefig(filepath)
+logger.info(f'Saved convergence plot to {filepath}')
 
-print(f'Completed in {time.perf_counter() - start_time:.1f} sec')
+logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')
