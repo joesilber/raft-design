@@ -5,6 +5,9 @@ as a csv table, as well as illustrated with an approximately to-scale 3D plot.
 Contact: Joe Silber, jhsilber@lbl.gov
 '''
 
+import time
+start_time = time.perf_counter()
+
 import math
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -16,6 +19,7 @@ import matplotlib.pyplot as plt
 import os
 from datetime import datetime
 import argparse
+
 
 timestamp_fmt = '%Y%m%dT%H%M'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
@@ -315,7 +319,8 @@ else:
     delta_gap_rad = userargs.raft_gap / sphR
     bidirectional_total_angle = math.acos(math.cos(delta_gap_rad)**2)
     front_gap = sphR * bidirectional_total_angle
-spacing_x = RB + front_gap / (math.sqrt(3)/2)
+gap_expansion_factor = 2.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
+spacing_x = RB + front_gap / (math.sqrt(3)/2) * gap_expansion_factor
 spacing_y = spacing_x * math.sqrt(3)/2
 half_width_count = math.ceil(vigR / spacing_x) + 1
 rng = range(-half_width_count, half_width_count+1)
@@ -385,7 +390,7 @@ for raft in rafts:
     dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
     neighbor_selection = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
     neighbor_selection &= raft.id != t['id']  # skip self
-    neighbor_selection_ids = np.nonzero(neighbor_selection)[0]
+    neighbor_selection_ids = np.flatnonzero(neighbor_selection)
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 
 # function to assess all gaps to neighbors
@@ -410,22 +415,26 @@ def calc_gaps():
 ### include main table in the program so that it can be updated
 
 # iteratively squeeze the pattern for more optimal close-packing
-max_iters = 10 * len(rafts)
-goal_delta = 0.1  # mm
-for iter in range(max_iters):
-    gaps = calc_gaps()
-    biggest_gap = gaps.sort(['min_gap_front', 'min_gap_rear'], reverse=True)
-    if delta < goal_delta:
-        break
+# max_iters = 10 * len(rafts)
+# goal_delta = 0.1  # mm
+# for iter in range(max_iters):
+#     gaps = calc_gaps()
+#     biggest_gap = gaps.sort(['min_gap_front', 'min_gap_rear'], reverse=True)
+#     if delta < goal_delta:
+#         break
 
 # print stats and write table
+
+gap_timer = time.perf_counter()
 gaps = calc_gaps()
+print(f'Calculated gaps for {len(rafts)} rafts in {time.perf_counter() - gap_timer} sec.')
+
 gaps.sort('id')
 t.sort('id')
 for key in ['min_gap_front', 'min_gap_rear']:
-    t[key] = gaps_table[key]
+    t[key] = gaps[key]
 for raft in rafts:
-    row_idx = int(np.nonzero(t['id'] == raft.id)[0])
+    row_idx = int(np.flatnonzero(t['id'] == raft.id))
     row = t[row_idx]
     row['radius'] = raft.r
     row['z'] = raft.z
@@ -444,6 +453,12 @@ basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}')
+for key in (k for k in t.colnames if 'gap' in k):
+    statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
+    print(f'\nFor "{key}" column:')
+    for name, func in statfuncs.items():
+        print(f'  {name:>6} = {func(t[key]):.3f}')
+    print('')
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
@@ -498,3 +513,5 @@ for i, view in enumerate(views):
     filename = f'{basename}_view{i}.png'
     plt.savefig(filename)
     print(f'Saved plot to {os.path.abspath(filename)}')
+
+print(f'Completed in {time.perf_counter() - start_time:.1f} sec')
