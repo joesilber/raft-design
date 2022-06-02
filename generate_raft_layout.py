@@ -463,11 +463,11 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 4
+max_iters = 200
 display_period = math.ceil(len(rafts) / 10)
-nudge_factor = 0.3  # fraction of gap error to nudge by on each iteration
-nudge_tol = 0.1  # mm, with respect to desired gap error
-convergence_criterion = 0.1  # mm
+nudge_factor = 0.2  # fraction of gap error to nudge by on each iteration
+nudge_tol = 0.05  # mm, with respect to desired gap error
+convergence_criterion = 0.05  # mm
 convergence_params = {'max_radius': [], 'max_gap': [], 'min_gap': []}
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
