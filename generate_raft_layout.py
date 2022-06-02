@@ -401,6 +401,8 @@ def calc_gaps(rafts):
     gaps = {}
     for key in ['id', 'raft', 'radius'] + gap_mag_keys + gap_vec_keys:
         gaps[key] = []
+    if not isinstance(rafts, {list, set, tuple}):
+        rafts = [raft]
     for raft in rafts:
         mags = {k: [] for k in gap_mag_keys}
         vecs = {k: [] for k in gap_vec_keys}
@@ -419,8 +421,6 @@ def calc_gaps(rafts):
             gaps[f'{name}_gap_front_vec'] += [vecs_front[front_idx]]
             gaps[f'{name}_gap_rear_vec'] += [vecs_rear[rear_idx]]
         gaps['id'] += [raft.id]
-        gaps['raft'] += [raft]
-        gaps['radius'] += [raft.r]
         gaps_table = Table(gaps)
     return gaps_table
 
@@ -451,150 +451,36 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 100 * len(rafts)
+max_iters = 10
+display_period = min(50, math.ceil(max_iters/10))
 nudge_factor = 0.7  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
-fixed_raft_ids = np.argmin(global_gaps['radius'])
-global_gaps.sort('radius', reverse=True)  # sets the order of nudging (i.e. from the outside inward)
+fixed_raft_ids = np.argmin([raft.r for raft in rafts]).tolist()  # don't nudge these
+raft_order = np.argsort([raft.r for raft in rafts]).tolist()  # sets the order of nudging (i.e. from the outside inward)
+moveable_rafts = [rafts[i] for i in raft_order if i not in fixed_raft_ids]
+print(f'Beginning nudging. Tolerance with respect to user-defined target gap ({userargs.raft_gap} mm) is {nudge_tol}.')
 for iter in range(max_iters):
-    for row in global_gaps:
-        if row['id'] in fixed_raft_ids:
+    max_errors = []
+    for raft in moveable_rafts:
+        gaps = calc_gaps(raft)
+        max_error = gaps[f'max_gap_{primary}'] - userargs.raft_gap
+        if abs(max_error) <= nudge_tol:
             break
-        max_error = row[f'max_gap_{primary}'] - userargs.raft_gap
-        if max_error < nudge_tol:
-            break
-        nudge_vec = max_error * nudge_factor * row[f'max_gap_{primary}_vec']
-        raft = row['raft']
+        nudge_vec = max_error * nudge_factor * gaps[f'max_gap_{primary}_vec']
         raft.x += nudge_vec[0]
         raft.y += nudge_vec[1]
-        subtable = calc_gaps(raft)
-        update_gaps(global_gaps, subtable)
-
-
-    worst_idx = np.argmin(moveable[primary_mag_key])
-    worst = moveable[worst_idx]
-
-    if worst[primary_mag_key] <= convergence_criterion:
+    abs_max_overall_error = max(np.abs(max_errors))
+    if abs_max_overall_error <= nudge_tol:
+        print(f'Nudging complete with abs max gap error {abs_max_overall_error:.3f} mm after {iter + 1} iterations.')
         break
-
-
-        % Select next hole to nudge.
-        w = w + 1;
-        if w > size(H,1); w = 1; end;    % wrap around to first hole
-        if H(w,horigin) || H(w,hredund)
-            dont_nudge = true; % don't move origin or a symmetry line point
-        else
-            dont_nudge = false;
-        end
-
-        % Identify worst neighbor error for this hole.
-        temp.N_idxs_lcl = get_neighbors_idxs(N,w);
-        temp.local_err = N(temp.N_idxs_lcl,nerror_cols);
-        [temp.worst_err,temp.w_err_sf] = min(min(temp.local_err,[],1),[],2);
-        [~,temp.worst_err_direction] = min(temp.local_err(:,temp.w_err_sf));
-
-        % Calculate direction along which to nudge.
-        temp.holes = N(temp.N_idxs_lcl(temp.worst_err_direction),1:2);
-        temp.target = temp.holes(1)*(temp.holes(2) == w) + temp.holes(2)*(temp.holes(1) == w);
-        temp.E = H(temp.target,hxyz(S)) - H(w,hxyz(S)); % direction vector
-        temp.e = temp.E/norm(temp.E);                   % unit direction vector
-
-        % Apply the nudge
-        temp.nudge_weight = temp.worst_err*nudge_factor - min_pitch_overshoot;
-        if dont_nudge; temp.nudge_weight = 0; end;
-        H(w,hxyz(S)) = H(w,hxyz(S)) + temp.e*temp.nudge_weight;
-
-        % Reconstrain point (if necessary) along the fixed-angle line.
-        if isfinite(H(w,hpfix))
-            temp.angle_correction = H(w,hpfix) - atan2d(H(w,hy(S))-pattern_offset_y,H(w,hx(S))-pattern_offset_x);
-            temp.rot = [cosd(temp.angle_correction),-sind(temp.angle_correction),0; ...
-                        sind(temp.angle_correction), cosd(temp.angle_correction),0; ...
-                        0,0,1];
-            H(w,hxyz(S)) = (temp.rot*H(w,hxyz(S))')';
-        end
-
-        % Reconstrain point to surface z = z(r)
-        H(w,hr(S)) = hypot(H(w,hx(S)),H(w,hy(S)));  % recalculate radial position
-        H(w,hz(S)) = sf(S).fit.z(H(w,hr(S)));       % constrain to z surface
-        H(w,hp) = atan2d(H(w,hy(S)),H(w,hx(S)));    % update precession angle
-        H(w,hn) = sf(S).fit.n(H(w,hr(S)));          % update nutation angle
-        b = [cosd(H(w,hp)).*sind(H(w,hn)), sind(H(w,hp)).*sind(H(w,hn)), cosd(H(w,hn))]; % unit projection vector
-        for i = notS
-            temp.proj = (pos_geom.offset(i)-pos_geom.offset(S))*b;  % projection vector
-            H(w,hxyz(i)) = H(w,hxyz(S)) + temp.proj;                % update projected xyz positions
-            H(w,hr(i)) = hypot(H(w,hx(i)),H(w,hy(i)));              % update projected r positions
-        end  
-
-        % Duplicate position for symmetry partner (if it exists)
-        if temp.sym_partners
-            temp.this_sym_partner = temp.sym_partners(temp.sym_partners(:,1) == w,2);
-            if temp.this_sym_partner
-                H(temp.this_sym_partner,:) = rotate_holes_about_central_axis(H(w,:),constraint_line_angle,length(sf),hxyz,hp,hs,hpfix,hredund);
-                temp.N_idxs_lcl = [temp.N_idxs_lcl;get_neighbors_idxs(N,temp.this_sym_partner)]; % so that partner pitches and errors will get updated below also        
-            end
-        end
-
-        % Update pitches and error values
-        for i = [S,notS]
-            N(temp.N_idxs_lcl,npitch(i)) = sqrt(sum((H(N(temp.N_idxs_lcl,1),hxyz(i)) - H(N(temp.N_idxs_lcl,2),hxyz(i))).^2,2));
-            N(temp.N_idxs_lcl,nerror(i)) = N(temp.N_idxs_lcl,npitch(i)) - pos_geom.min_allowed_pitch(i);
-        end
-        
-        % logging of convergence
-        err_min(j) = min(min(N(:,nerror_cols)));
-        err_max(j) = max(max(N(:,nerror_cols)));
-        err_rms(j) = sqrt(1/(size(N,1)*length(sf)))*norm(N(:,nerror_cols));
-        
-        % decide whether converged enough
-        if err_min(j) > 0 && j > min_nudge_iter
-            latest = (j-min_nudge_iter+1):j;
-            if std(err_min(latest)) <= nudge_converge_tol && ...
-               std(err_max(latest)) <= nudge_converge_tol && ...
-               std(err_rms(latest)) <= nudge_converge_tol
-               keep_looping = false;
-            end
-        end
-
-        % display progress
-        if not(mod(j,round(min_nudge_iter*4))) || j == 1 || keep_looping == false
-            fprintf('Nudge iter: %i iterations complete, err: max = %.3f, min = %.3f, rms = %.3f ...\n',j,err_max(j),err_min(j),err_rms(j));
-            if realtime_converge_plot
-                subplot(3,1,1);
-                plot(1:j,err_max(1:j),1:j,err_rms(1:j),1:j,err_min(1:j)); % real-time convergence plot
-                xlabel('nudge iterations');
-                ylabel('pitch - min allowed pitch (mm)');
-                legend('max','rms','min','Location','NorthWest');
-                grid on;
-                subplot(3,1,[2:3]);
-                temp.lowpitch_select = N(logical(sum(N(:,nerror_cols)<0,2)),1);
-                plot(H(:,hx(1)),H(:,hy(1)),'go',H(temp.lowpitch_select,hx(1)),H(temp.lowpitch_select,hy(1)),'rx'); % real-time under-pitch limit plot
-                xlabel('x (mm)');
-                ylabel('y (mm)');
-                legend('hole positions','pitch < min allowed','Location','NorthWest');
-                axis equal;
-                axis(converge_plot_axis_lim);
-                text(max(xlim),min(ylim),sprintf('max R = %.3f   \n\n',max(H(:,hr(1)))),'HorizontalAlignment','Right');
-                drawnow;
-                if plot_logging_on
-                    dirname = [save_directory,'convergence_plot_series'];
-                    if not(exist(dirname,'dir')); mkdir(dirname); end;
-                    orient portrait; print(gcf,'-dpng','-r200',[dirname,'/convplot',num2str(j),'.png']);
-                end
-            end
-            toc;
-        end
-    end
-    if j == max_nudge_iter
-        fprintf('Nudging halted, non-convergence after %i iterations\n',j);
-    else
-        fprintf('Nudging convergence after %i iterations\n',j);
-    end
-    err_min(not(isfinite(err_min))) = [];
-    err_max(not(isfinite(err_max))) = [];
-    err_rms(not(isfinite(err_rms))) = [];
-
+    if iter == max_iters - 1:
+        print(f'Nudging complete after {max_iters} iterations, though abs max gap error {abs_max_overall_error:.3f} mm > tolerance {nudge_tol}.')
+        break
+    if iter % display_period == 0:
+        print(f'Nudge iteration {iter} complete. Max overall gap error = {abs_max_overall_error:.3f}...')
+global_gaps = calc_and_print_gaps(rafts)
 
 # print stats and write table
 global_gaps.sort('id')
