@@ -443,6 +443,8 @@ def calc_and_print_gaps(rafts):
 # global table of gaps between rafts
 global_gaps = calc_and_print_gaps(rafts)
 global_gaps.add_index('id')
+gap_minima = {k: min(global_gaps[k]) for k in gap_mag_keys}
+assert not(any(np.array(gap_minima) <= 0)), f'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
 
 def update_gaps(maintable, subtable):
     '''updates one table using new values from some subtable of gaps for a subset of rafts'''
