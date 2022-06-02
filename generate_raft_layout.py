@@ -463,7 +463,7 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 50
+max_iters = 4
 display_period = math.ceil(len(rafts) / 10)
 nudge_factor = 0.3  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
@@ -509,12 +509,12 @@ for iter in range(max_iters):
     convergence_params['max_radius'] += [max(these_raft_radii)]
     convergence_params['max_gap'] += [max(these_gaps)]
     convergence_params['min_gap'] += [min(these_gaps)]
-    deltas = {key: vals[-1] - vals[-2] if len(vals) > 1 else math.inf for key, vals in convergence_params.items()}
+    convergence_deltas = {key: vals[-1] - vals[-2] if len(vals) > 1 else math.inf for key, vals in convergence_params.items()}
     s = f'Nudge iteration {iter} complete.'
     for key in convergence_params:
-        s += f'\n  {key:>10} = {convergence_params[key][-1]:.3f} (change of {deltas[key]:.3f})'
+        s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key]:>6.3f})'
     print(s)
-    if all(np.abs(list(deltas.values())) <= convergence_criterion):
+    if all(np.abs(list(convergence_deltas.values())) <= convergence_criterion):
         print(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
@@ -603,6 +603,24 @@ for i, view in enumerate(views):
     ax.elev = view[1]
     filename = f'{basename}_view{i}.png'
     plt.savefig(filename)
-    print(f'Saved plot to {os.path.abspath(filename)}')
+    print(f'Saved 3D plot to {os.path.abspath(filename)}')
+
+plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
+i = 0
+for key, data in convergence_params.items():
+    i += 1
+    plt.subplot(2, 3, i)
+    plt.plot(data, label=key)
+    plt.legend(loc='upper right')
+    plt.grid(True)
+    plt.subplot(2, 3, i + 3)
+    deltas = [0] + np.diff(data).tolist()
+    plt.plot(deltas, label=f'delta {key}')
+    plt.legend(loc='upper right')
+    plt.grid(True)
+plt.suptitle(f'raft layout convergence parameters\nall units mm')
+filename = f'{basename}_convergence.png'
+plt.savefig(filename)
+print(f'Saved convergence plot to {os.path.abspath(filename)}')
 
 print(f'Completed in {time.perf_counter() - start_time:.1f} sec')
