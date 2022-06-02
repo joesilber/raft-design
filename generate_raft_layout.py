@@ -399,13 +399,13 @@ gap_vec_keys = ['min_gap_front_vec', 'min_gap_rear_vec', 'max_gap_front_vec', 'm
 def calc_gaps(rafts):
     '''calculate nearest gaps to neighbors for all rafts in argued collection'''
     gaps = {}
-    for key in ['id', 'raft', 'radius'] + gap_mag_keys + gap_vec_keys:
+    for key in ['id'] + gap_mag_keys + gap_vec_keys:
         gaps[key] = []
-    if not isinstance(rafts, {list, set, tuple}):
-        rafts = [raft]
+    if not isinstance(rafts, (list, set, tuple)):
+        rafts = [rafts]
     for raft in rafts:
-        mags = {k: [] for k in gap_mag_keys}
-        vecs = {k: [] for k in gap_vec_keys}
+        mags_front, mags_rear = [], []
+        vecs_front, vecs_rear = [], []
         for neighbor in raft.neighbors:
             mag_front, vec_front = raft.front_gap(neighbor)
             mag_rear, vec_rear = raft.rear_gap(neighbor)
@@ -413,7 +413,7 @@ def calc_gaps(rafts):
             mags_rear += [mag_rear]
             vecs_front += [vec_front]
             vecs_rear += [vec_rear]
-        for name, func in {'min': np.argmin, 'max': np.argmax}:
+        for name, func in {'min': np.argmin, 'max': np.argmax}.items():
             front_idx = func(mags_front)
             rear_idx = func(mags_rear)
             gaps[f'{name}_gap_front'] += [mags_front[front_idx]]
@@ -421,7 +421,7 @@ def calc_gaps(rafts):
             gaps[f'{name}_gap_front_vec'] += [vecs_front[front_idx]]
             gaps[f'{name}_gap_rear_vec'] += [vecs_rear[rear_idx]]
         gaps['id'] += [raft.id]
-        gaps_table = Table(gaps)
+    gaps_table = Table(gaps)
     return gaps_table
 
 statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
@@ -457,10 +457,10 @@ nudge_factor = 0.7  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
-fixed_raft_ids = np.argmin([raft.r for raft in rafts]).tolist()  # don't nudge these
+fixed_raft_ids = [np.argmin([raft.r for raft in rafts])]  # don't nudge these
 raft_order = np.argsort([raft.r for raft in rafts]).tolist()  # sets the order of nudging (i.e. from the outside inward)
 moveable_rafts = [rafts[i] for i in raft_order if i not in fixed_raft_ids]
-print(f'Beginning nudging. Tolerance with respect to user-defined target gap ({userargs.raft_gap} mm) is {nudge_tol}.')
+print(f'Beginning nudging. Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
 for iter in range(max_iters):
     max_errors = []
     for raft in moveable_rafts:
