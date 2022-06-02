@@ -551,7 +551,7 @@ for raft in rafts:
     row['id'] = raft.id
 neighbor_ids = []
 for raft in rafts:
-    neighbor_ids += ['-'.join(str(n.id) for n in raft.neighbors)]
+    neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
 t.pprint_all()
 n_rafts = len(rafts)
