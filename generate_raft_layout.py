@@ -453,9 +453,10 @@ basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}')
+print('')
 for key in (k for k in t.colnames if 'gap' in k):
     statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
-    print(f'\nFor "{key}" column:')
+    print(f'For "{key}" column:')
     for name, func in statfuncs.items():
         print(f'  {name:>6} = {func(t[key]):.3f}')
     print('')
