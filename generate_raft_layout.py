@@ -469,6 +469,7 @@ nudge_factor = {'min': 0.4,  # fraction to nudge the smallest of a given polygon
                 'max': 0.2}  # fraction to nudge the largest etc...
 nudge_tol = 0.05  # mm, with respect to desired gap error
 convergence_criterion = 0.05  # mm
+convergence_criterion_repeats = 3  # number of successive iterations where all convergence params must change by no more than criterion
 convergence_params = {'max_radius': [], 'max_gap': [], 'min_gap': []}
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
@@ -511,16 +512,24 @@ for iter in range(max_iters):
     convergence_params['max_radius'] += [max(these_raft_radii)]
     convergence_params['max_gap'] += [max(these_gaps)]
     convergence_params['min_gap'] += [min(these_gaps)]
-    convergence_deltas = {key: vals[-1] - vals[-2] if len(vals) > 1 else math.inf for key, vals in convergence_params.items()}
+    delta_select = convergence_criterion_repeats + 1
+    convergence_deltas = {}
+    convergence_deltas_merged = []
+    for key, vals in convergence_params.items():
+        deltas_list = np.diff(vals[:-delta_select]).tolist() if len(vals) < delta_select else [math.inf]
+        convergence_deltas[key] = deltas_list
+        convergence_deltas_merged += deltas_list
     s = f'Nudge iteration {iter} complete.'
     for key in convergence_params:
-        s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key]:>6.3f})'
+        s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
     print(s)
-    if all(np.abs(list(convergence_deltas.values())) <= convergence_criterion):
+    if all(np.abs(convergence_deltas_merged) <= convergence_criterion):
+        print(f'Last {len(deltas_list)} convergence parameters all changed by <= criterion {convergence_criterion} '
+              f'for all parameters {tuple(convergence_params)}.')
         print(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
-        print(f'Nudging halted after max ({iter + 1}) iterations.')
+        print(f'Nudging halted without passing convergence criteria after max ({iter + 1}) iterations.')
         break
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
