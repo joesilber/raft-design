@@ -393,8 +393,9 @@ for raft in rafts:
     neighbor_selection_ids = np.flatnonzero(neighbor_selection)
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 
-# function to assess all gaps to neighbors
-def calc_gaps():
+# gap assessment
+def calc_gaps(rafts):
+    '''calculate nearest gaps to neighbors for all rafts in argued collection'''
     gaps = {'id': [], 'raft': [], 'min_gap_front': [], 'min_gap_rear': []}
     for raft in rafts:
         gaps_front = []
@@ -411,7 +412,23 @@ def calc_gaps():
         gaps_table = Table(gaps)
     return gaps_table
 
-### break out the neighbor calcs so can just do a set of neighbors
+statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
+def print_gap_stats(gaps_table):
+    for key in (k for k in gaps_table.colnames if 'gap' in k):
+        print(f'For "{key}" column:')
+        for name, func in statfuncs.items():
+            print(f'  {name:>6} = {func(gaps_table[key]):.3f}')
+        print('')
+
+def calc_and_print_gaps(rafts):
+    '''verbose combination of gap calculation and printing stats'''
+    gap_timer = time.perf_counter()
+    gaps = calc_gaps(rafts)
+    print(f'\nCalculated gaps for {len(rafts)} rafts in {time.perf_counter() - gap_timer:.2f} sec.\n')
+    print_gap_stats(gaps)
+    return gaps
+
+gaps = calc_and_print_gaps(rafts)
 ### include main table in the program so that it can be updated
 
 # iteratively squeeze the pattern for more optimal close-packing
@@ -425,10 +442,8 @@ def calc_gaps():
 
 # print stats and write table
 
-gap_timer = time.perf_counter()
-gaps = calc_gaps()
-print(f'Calculated gaps for {len(rafts)} rafts in {time.perf_counter() - gap_timer} sec.')
 
+gaps = calc_gaps(rafts)
 gaps.sort('id')
 t.sort('id')
 for key in ['min_gap_front', 'min_gap_rear']:
@@ -452,14 +467,8 @@ n_robots = n_rafts*72
 basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
-print(f'Saved table to {os.path.abspath(filename)}')
-print('')
-for key in (k for k in t.colnames if 'gap' in k):
-    statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
-    print(f'For "{key}" column:')
-    for name, func in statfuncs.items():
-        print(f'  {name:>6} = {func(t[key]):.3f}')
-    print('')
+print(f'Saved table to {os.path.abspath(filename)}\n')
+print_gap_stats(gaps)
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
