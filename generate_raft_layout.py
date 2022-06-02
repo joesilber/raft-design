@@ -498,8 +498,8 @@ for iter in range(max_iters):
             raft.y += nudge_vec[1]
             gaps = calc_gaps(raft, return_type='dict')
             gap_mags = [gaps[mag_key][0] for mag_key in gap_mag_keys]
-            if any(np.array(gap_mags) <= 0):
-                # restore previous raft position since this change caused an interference
+            should_undo = any(np.array(gap_mags) <= userargs.raft_gap)
+            if should_undo:
                 raft.x -= nudge_vec[0]
                 raft.y -= nudge_vec[1]
         upper_gaps += [gaps[f'max_gap_{primary}'][0]]
