@@ -457,7 +457,7 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 10
+max_iters = 2
 display_period = math.ceil(len(rafts) / 10)
 nudge_factor = 0.3  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
@@ -473,8 +473,8 @@ for iter in range(max_iters):
     upper_errors = []
     lower_errors = []
     nudge_order = np.argsort([raft.r for raft in moveable_rafts]).tolist()  # sets the order of nudging to be from the outermost raft inward
-    for i in nudge_order:
-        raft = moveable_rafts[i]
+    for count, idx in enumerate(nudge_order):
+        raft = moveable_rafts[idx]
         gaps = calc_gaps(raft, return_type='dict')  # values in this dict will be wrapped in one-element lists
         for mag_key, vec_key in nudge_attempt_keys.items():
             error = gaps[mag_key][0] - userargs.raft_gap
@@ -492,8 +492,8 @@ for iter in range(max_iters):
                 raft.y -= nudge_vec[1]
         upper_errors += [gaps[f'max_gap_{primary}'][0] - userargs.raft_gap]
         lower_errors += [gaps[f'min_gap_{primary}'][0] - userargs.raft_gap]
-        if i % display_period == 0 or i == len(moveable_rafts) - 1:
-            print(f'Iteration {iter}.Nudges applied through raft {i + 1} of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
+        if count % display_period == 0 or count == len(moveable_rafts) - 1:
+            print(f'Iteration {iter}: Nudges applied through raft {count + 1} of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
     worst_abs_error = max(np.abs(upper_errors + lower_errors))
     if worst_abs_error <= nudge_tol:
         print(f'Nudging complete with worst case abs gap error {worst_abs_error:.3f} mm after {iter + 1} iterations.')
