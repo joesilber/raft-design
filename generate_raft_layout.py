@@ -467,7 +467,8 @@ max_iters = 50
 display_period = math.ceil(len(rafts) / 10)
 nudge_factor = 0.3  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
-convergence_criterion = 0.01  # mm
+convergence_criterion = 0.1  # mm
+convergence_params = {'max_radius': [], 'max_gap': [], 'min_gap': []}
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
 nudge_attempt_order = [f'max_gap_{primary}', f'max_gap_{secondary}', f'min_gap_{primary}', f'min_gap_{secondary}']
@@ -475,8 +476,9 @@ nudge_attempt_keys = {mag_key: f'{mag_key}_vec' for mag_key in nudge_attempt_ord
 rafts_radii = [raft.r for raft in rafts]
 fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
 moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
-print(f'Beginning nudging. Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
-max_raft_radii = [max(rafts_radii)]
+print('Beginning nudging.')
+print(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
+print(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
 for iter in range(max_iters):
     upper_gaps, lower_gaps, these_raft_radii = [], [], []
     nudge_order = np.argsort([raft.r for raft in moveable_rafts]).tolist()  # sets the order of nudging to be from the outermost raft inward
@@ -503,13 +505,16 @@ for iter in range(max_iters):
         if count % display_period == 0 or count == len(moveable_rafts) - 1:
             print(f'Iteration {iter}: Nudges applied through raft {count + 1} '
                   f'of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
-    all_gaps = upper_gaps + lower_gaps
-    max_raft_radii += [max(these_raft_radii)]
-    delta_max_raft_radii = max_raft_radii[-1] - max_raft_radii[-2]
-    print(f'Nudge iteration {iter} complete. Max radius = {max_raft_radii[-1]:.3f}, '
-          f'change of {delta_max_raft_radii:.3f}, '
-          f'min gap = {min(all_gaps):.3f}, max gap = {max(all_gaps):.3f} ...')
-    if abs(delta_max_raft_radii) <= convergence_criterion:
+    these_gaps = upper_gaps + lower_gaps
+    convergence_params['max_radius'] += [max(these_raft_radii)]
+    convergence_params['max_gap'] += [max(these_gaps)]
+    convergence_params['min_gap'] += [min(these_gaps)]
+    deltas = {key: vals[-1] - vals[-2] if len(vals) > 1 else math.inf for key, vals in convergence_params.items()}
+    s = f'Nudge iteration {iter} complete.'
+    for key in convergence_params:
+        s += f'\n  {key:>10} = {convergence_params[key][-1]:.3f} (change of {deltas[key]:.3f})'
+    print(s)
+    if all(np.abs(list(deltas.values())) <= convergence_criterion):
         print(f'Nudging complete after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
