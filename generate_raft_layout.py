@@ -399,7 +399,8 @@ for key in grid:
 t = Table(grid)
 t['radius'] = np.hypot(t['x'], t['y'])
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
-other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int, 'max_vertex_radius': float}
+other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
+              'max_vertex_radius': float, 'min_vertex_radius': float}
 for col, typecast in other_cols.items():
     t[col] = [typecast(0)]*len(t)
 
@@ -576,6 +577,7 @@ for raft in rafts:
     row['spin'] = raft.spin
     row['id'] = raft.id
     row['max_vertex_radius'] = raft.max_vertex_radius
+    row['min_vertex_radius'] = raft.min_vertex_radius
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
