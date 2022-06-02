@@ -394,9 +394,12 @@ for raft in rafts:
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 
 # gap assessment
+gap_keys = ['min_gap_front', 'min_gap_rear']
 def calc_gaps(rafts):
     '''calculate nearest gaps to neighbors for all rafts in argued collection'''
-    gaps = {'id': [], 'raft': [], 'min_gap_front': [], 'min_gap_rear': []}
+    gaps = {}
+    for key in ['id', 'raft'] + gap_keys:
+        gaps[key] = []
     for raft in rafts:
         gaps_front = []
         gaps_rear = []
@@ -428,8 +431,22 @@ def calc_and_print_gaps(rafts):
     print_gap_stats(gaps)
     return gaps
 
-gaps = calc_and_print_gaps(rafts)
-### include main table in the program so that it can be updated
+# global table of gaps between rafts
+global_gaps = calc_and_print_gaps(rafts)
+global_gaps.add_index('id')
+
+def update_gaps(maintable, subtable):
+    '''updates one table using new values from some subtable of gaps for a subset of rafts'''
+    idxs_to_update = maintable.loc_indices[subtable['id']]
+    for key in gap_keys:
+        maintable[key][idxs_to_update] = subtable[key]
+
+# test updating of gaps with subtable (remove this later)
+test_gaps = calc_gaps(rafts[:2])
+test_gaps['min_gap_front'][0] = 100
+test_gaps['min_gap_rear'][1] = 200
+update_gaps(global_gaps, test_gaps)
+print_gap_stats(global_gaps)
 
 # iteratively squeeze the pattern for more optimal close-packing
 # max_iters = 10 * len(rafts)
@@ -441,13 +458,10 @@ gaps = calc_and_print_gaps(rafts)
 #         break
 
 # print stats and write table
-
-
-gaps = calc_gaps(rafts)
-gaps.sort('id')
+global_gaps.sort('id')
 t.sort('id')
-for key in ['min_gap_front', 'min_gap_rear']:
-    t[key] = gaps[key]
+for key in gap_keys:
+    t[key] = global_gaps[key]
 for raft in rafts:
     row_idx = int(np.flatnonzero(t['id'] == raft.id))
     row = t[row_idx]
@@ -468,7 +482,7 @@ basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
 filename = basename + '.csv'
 t.write(filename, overwrite=True)
 print(f'Saved table to {os.path.abspath(filename)}\n')
-print_gap_stats(gaps)
+print_gap_stats(global_gaps)
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
