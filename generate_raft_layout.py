@@ -128,7 +128,7 @@ RL = userargs.raft_length
 RC = userargs.raft_chamfer
 h1 = RB * 3**0.5 / 2  # height from base of triangle to opposite tip
 h2 = RB / 3**0.5 / 2 # height from base of triangle to center
-h3 = h1 - h2  # height from center of triangle to tip
+h3 = RB / 3**0.5  # height from center of triangle to tip
 raft_profile_x = [-RB/2,  0, RB/2]
 raft_profile_y = [-h2, h3, -h2]
 raft_profile_z = [0, 0, 0]
@@ -388,12 +388,13 @@ for row in t:
 # determine neighbors
 for raft in rafts:
     dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
-    neighbor_selection = dist < spacing_x * 1.2  # may be conservatively inclusive, but that's ok, not too costly
+    neighbor_selection_radius = spacing_x / math.sqrt(3) * 1.1
+    neighbor_selection = dist < neighbor_selection_radius
     neighbor_selection &= raft.id != t['id']  # skip self
     neighbor_selection_ids = np.flatnonzero(neighbor_selection)
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 neighbor_counts = {raft.id: len(raft.neighbors) for raft in rafts}
-too_many_neighbors = {id: count for id, count in neighbor_counts.items() if count > 6}
+too_many_neighbors = {id: count for id, count in neighbor_counts.items() if count > 3}
 assert not(too_many_neighbors), f'non-physical number of neighbors detected. RAFT_ID:COUNT = {too_many_neighbors}'
 
 # gap assessment
@@ -517,6 +518,8 @@ for key in gap_mag_keys:
 for raft in rafts:
     row_idx = int(np.flatnonzero(t['id'] == raft.id))
     row = t[row_idx]
+    row['x'] = raft.x
+    row['y'] = raft.y
     row['radius'] = raft.r
     row['z'] = raft.z
     row['precession'] = raft.precession
