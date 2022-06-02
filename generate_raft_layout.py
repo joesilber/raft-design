@@ -394,28 +394,30 @@ for raft in rafts:
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 
 # gap assessment
-gap_mag_keys = ['min_gap_front', 'min_gap_rear']
-gap_dir_keys = ['dir_gap_front', 'dir_gap_rear']
+gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
+gap_vec_keys = ['min_gap_front_vec', 'min_gap_rear_vec', 'max_gap_front_vec', 'max_gap_rear_vec']
 def calc_gaps(rafts):
     '''calculate nearest gaps to neighbors for all rafts in argued collection'''
     gaps = {}
-    for key in ['id', 'raft', 'radius'] + gap_mag_keys + gap_dir_keys:
+    for key in ['id', 'raft', 'radius'] + gap_mag_keys + gap_vec_keys:
         gaps[key] = []
     for raft in rafts:
-        mags_front, mags_rear, dirs_front, dirs_rear = [], [], [], []
+        mags = {k: [] for k in gap_mag_keys}
+        vecs = {k: [] for k in gap_vec_keys}
         for neighbor in raft.neighbors:
-            mag_front, dir_front = raft.front_gap(neighbor)
-            mag_rear, dir_rear = raft.rear_gap(neighbor)
+            mag_front, vec_front = raft.front_gap(neighbor)
+            mag_rear, vec_rear = raft.rear_gap(neighbor)
             mags_front += [mag_front]
             mags_rear += [mag_rear]
-            dirs_front += [dir_front]
-            dirs_rear += [dir_rear]
-        min_front_idx = np.argmin(mags_front)
-        min_rear_idx = np.argmin(mags_rear)
-        gaps['min_gap_front'] += [mags_front[min_front_idx]]
-        gaps['min_gap_rear'] += [mags_rear[min_rear_idx]]
-        gaps['dir_gap_front'] += [dirs_front[min_front_idx]]
-        gaps['dir_gap_rear'] += [dirs_rear[min_rear_idx]]
+            vecs_front += [vec_front]
+            vecs_rear += [vec_rear]
+        for name, func in {'min': np.argmin, 'max': np.argmax}:
+            front_idx = func(mags_front)
+            rear_idx = func(mags_rear)
+            gaps[f'{name}_gap_front'] += [mags_front[front_idx]]
+            gaps[f'{name}_gap_rear'] += [mags_rear[rear_idx]]
+            gaps[f'{name}_gap_front_vec'] += [vecs_front[front_idx]]
+            gaps[f'{name}_gap_rear_vec'] += [vecs_rear[rear_idx]]
         gaps['id'] += [raft.id]
         gaps['raft'] += [raft]
         gaps['radius'] += [raft.r]
@@ -424,7 +426,7 @@ def calc_gaps(rafts):
 
 statfuncs = {'min': min, 'max': max, 'median': np.median, 'mean': np.mean, 'rms': lambda a: np.sqrt(np.sum(np.power(a, 2))/len(a))}
 def print_gap_stats(gaps_table):
-    for key in (k for k in gaps_table.colnames if 'gap' in k):
+    for key in gap_mag_keys:
         print(f'For "{key}" column:')
         for name, func in statfuncs.items():
             print(f'  {name:>6} = {func(gaps_table[key]):.3f}')
@@ -451,16 +453,29 @@ def update_gaps(maintable, subtable):
 # iteratively nudge the rafts toward each other for more optimal close-packing
 max_iters = 100 * len(rafts)
 nudge_factor = 0.7  # fraction of gap error to nudge by on each iteration
-convergence_criterion = 0.1  # mm, with respect to desired gap error
-primary_suffix = 'rear' if is_convex else 'front'
-secondary_suffix = 'front' if is_convex else 'rear'
-primary_mag_key = f'min_gap_{primary_suffix}'
-raft_initial_radii = [raft.r for raft in rafts]
-fixed_raft_id = rafts[np.argmin(raft_initial_radii)].id
-moveable = global_gaps.copy().remove_rows(global_gaps.loc_indices[fixed_raft_id])
+nudge_tol = 0.1  # mm, with respect to desired gap error
+primary = 'rear' if is_convex else 'front'
+secondary = 'front' if is_convex else 'rear'
+fixed_raft_ids = np.argmin(global_gaps['radius'])
+global_gaps.sort('radius', reverse=True)  # sets the order of nudging (i.e. from the outside inward)
 for iter in range(max_iters):
+    for row in global_gaps:
+        if row['id'] in fixed_raft_ids:
+            break
+        max_error = row[f'max_gap_{primary}'] - userargs.raft_gap
+        if max_error < nudge_tol:
+            break
+        nudge_vec = max_error * nudge_factor * row[f'max_gap_{primary}_vec']
+        raft = row['raft']
+        raft.x += nudge_vec[0]
+        raft.y += nudge_vec[1]
+        subtable = calc_gaps(raft)
+        update_gaps(global_gaps, subtable)
+
+
     worst_idx = np.argmin(moveable[primary_mag_key])
     worst = moveable[worst_idx]
+
     if worst[primary_mag_key] <= convergence_criterion:
         break
 
