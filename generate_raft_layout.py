@@ -374,7 +374,9 @@ for key in grid:
 
 # table structure for raft positions and orientations
 t = Table(grid)
-other_cols = ['z', 'radius', 'precession', 'nutation', 'spin', 'id']
+t['radius'] = np.hypot(t['x'], t['y'])
+t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
+other_cols = ['z', 'precession', 'nutation', 'spin', 'id']
 for col in other_cols:
     t[col] = [0]*len(t)
 
@@ -461,7 +463,7 @@ def update_gaps(maintable, subtable):
         maintable[key][idxs_to_update] = subtable[key]
 
 # iteratively nudge the rafts toward each other for more optimal close-packing
-max_iters = 2
+max_iters = 10
 display_period = math.ceil(len(rafts) / 10)
 nudge_factor = 0.3  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
