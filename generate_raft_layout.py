@@ -58,7 +58,7 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.A
 parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
+parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
@@ -482,7 +482,7 @@ print('Beginning nudging.')
 print(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
 print(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
 for iter in range(max_iters):
-    upper_gaps, lower_gaps, these_raft_radii = [], [], []
+    upper_gap_mags, lower_gap_mags, these_raft_radii = [], [], []
     nudge_order = np.argsort([raft.r for raft in moveable_rafts]).tolist()  # sets the order of nudging to be from the outermost raft inward
     for count, idx in enumerate(nudge_order):
         raft = moveable_rafts[idx]
@@ -496,19 +496,21 @@ for iter in range(max_iters):
             nudge_vec = error * nudge_factor[nf_key] * direction_vector
             raft.x += nudge_vec[0]
             raft.y += nudge_vec[1]
+            previous_gaps = gaps
             gaps = calc_gaps(raft, return_type='dict')
             gap_mags = [gaps[mag_key][0] for mag_key in gap_mag_keys]
             should_undo = any(np.array(gap_mags) <= userargs.raft_gap)
             if should_undo:
                 raft.x -= nudge_vec[0]
                 raft.y -= nudge_vec[1]
-        upper_gaps += [gaps[f'max_gap_{primary}'][0]]
-        lower_gaps += [gaps[f'min_gap_{primary}'][0]]
+                gaps = previous_gaps
+        upper_gap_mags += [gaps[f'max_gap_{primary}'][0]]
+        lower_gap_mags += [gaps[f'min_gap_{primary}'][0]]
         these_raft_radii += [raft.r]
         if count % display_period == 0 or count == len(moveable_rafts) - 1:
             print(f'Iteration {iter}: Nudges applied through raft {count + 1} '
                   f'of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
-    these_gaps = upper_gaps + lower_gaps
+    these_gaps = upper_gap_mags + lower_gap_mags
     convergence_params['max_radius'] += [max(these_raft_radii)]
     convergence_params['max_gap'] += [max(these_gaps)]
     convergence_params['min_gap'] += [min(these_gaps)]
@@ -516,15 +518,16 @@ for iter in range(max_iters):
     convergence_deltas = {}
     convergence_deltas_merged = []
     for key, vals in convergence_params.items():
-        deltas_list = np.diff(vals[:-delta_select]).tolist() if len(vals) < delta_select else [math.inf]
+        deltas_list = np.diff(vals[-delta_select:]).tolist() if len(vals) > 1 else [math.inf]
         convergence_deltas[key] = deltas_list
         convergence_deltas_merged += deltas_list
     s = f'Nudge iteration {iter} complete.'
     for key in convergence_params:
         s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
     print(s)
-    if all(np.abs(convergence_deltas_merged) <= convergence_criterion):
-        print(f'Last {len(deltas_list)} convergence parameters all changed by <= criterion {convergence_criterion} '
+    num_deltas_per_param = len(deltas_list)
+    if all(np.abs(convergence_deltas_merged) <= convergence_criterion) and num_deltas_per_param >= convergence_criterion_repeats:
+        print(f'Last {num_deltas_per_param} convergence parameters all changed by <= criterion {convergence_criterion} '
               f'for all parameters {tuple(convergence_params)}.')
         print(f'Nudging complete after {iter + 1} iterations.')
         break
