@@ -457,29 +457,40 @@ nudge_factor = 0.7  # fraction of gap error to nudge by on each iteration
 nudge_tol = 0.1  # mm, with respect to desired gap error
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
+nudge_attempt_order = [f'max_gap_{primary}', f'max_gap_{secondary}', f'min_gap_{primary}', f'min_gap_{secondary}']
+nudge_attempt_keys = {mag_key: f'{mag_key}_vec' for mag in nudge_attempt_order}
 fixed_raft_ids = [np.argmin([raft.r for raft in rafts])]  # don't nudge these
 raft_order = np.argsort([raft.r for raft in rafts]).tolist()  # sets the order of nudging (i.e. from the outside inward)
 moveable_rafts = [rafts[i] for i in raft_order if i not in fixed_raft_ids]
 print(f'Beginning nudging. Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
 for iter in range(max_iters):
-    max_errors = []
+    upper_errors = []
+    lower_errors = []
     for raft in moveable_rafts:
         gaps = calc_gaps(raft)
-        max_error = gaps[f'max_gap_{primary}'] - userargs.raft_gap
-        if abs(max_error) <= nudge_tol:
-            break
-        nudge_vec = max_error * nudge_factor * gaps[f'max_gap_{primary}_vec']
-        raft.x += nudge_vec[0]
-        raft.y += nudge_vec[1]
-    abs_max_overall_error = max(np.abs(max_errors))
-    if abs_max_overall_error <= nudge_tol:
-        print(f'Nudging complete with abs max gap error {abs_max_overall_error:.3f} mm after {iter + 1} iterations.')
+        for mag_key, vec_key in nudge_attempt_keys.items():
+            error = gaps[mag_key] - userargs.raft_gap
+            if abs(error) <= nudge_tol:
+                break
+            nudge_vec = error * nudge_factor * gaps[vec_key]
+            raft.x += nudge_vec[0]
+            raft.y += nudge_vec[1]
+            gaps = calc_gaps(raft)
+            if any(np.array([gaps[mag_key] for mag_key in gap_mag_keys]) <= 0):
+                # restore previous raft position since this change caused an interference
+                raft.x -= nudge_vec[0]
+                raft.y -= nudge_vec[1]
+        upper_errors += [gaps[f'max_gap_{primary}']]
+        lower_errors += [gaps[f'min_gap_{primary}']]
+    worst_abs_error = max(np.abs(upper_errors + lower_errors))
+    if worst_abs_error <= nudge_tol:
+        print(f'Nudging complete with worst case abs gap error {worst_abs_error:.3f} mm after {iter + 1} iterations.')
         break
     if iter == max_iters - 1:
-        print(f'Nudging complete after {max_iters} iterations, though abs max gap error {abs_max_overall_error:.3f} mm > tolerance {nudge_tol}.')
+        print(f'Nudging complete after {max_iters} iterations, though worst case abs gap error {worst_abs_error:.3f} mm > tolerance {nudge_tol}.')
         break
     if iter % display_period == 0:
-        print(f'Nudge iteration {iter} complete. Max overall gap error = {abs_max_overall_error:.3f}...')
+        print(f'Nudge iteration {iter} complete. Worst case abs gap error = {worst_abs_error:.3f}...')
 global_gaps = calc_and_print_gaps(rafts)
 
 # print stats and write table
