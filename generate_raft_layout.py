@@ -43,9 +43,9 @@ logger, _, _ = simple_logger.start_logger(logpath)
 #   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
 #   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
 focal_surfaces = {
-    'MM1536_cfg1_2021-09-10':
+    'MM1536-cfg1-20210910':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
-        'file': 'MM1536_cfg1_2021-09-10.csv',
+        'file': 'MM1536-cfg1-20210910.csv',
         'z_sign': -1,
         'vigR': 613.2713,
         },
