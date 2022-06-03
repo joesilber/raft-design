@@ -353,7 +353,7 @@ for j in rng:
     x = [spacing_x*i + userargs.x_offset for i in rng]
     if j % 2:
         x = [u + spacing_x/2 for u in x]
-    y = [spacing_y * j + userargs.y_offset]*len(x)
+    y = [spacing_y*j + userargs.y_offset]*len(x)
 
     # upward pointing triangles
     natural_grid['x'] += x
