@@ -671,7 +671,7 @@ for i, view in enumerate(views):
     logger.info(f'Saved 3D plot to {filepath}')
 
 # 2d raft plots
-plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
+plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
 for p, name in enumerate(['front', 'rear']):
     plt.subplot(1, 2, p + 1)
     for i, raft in enumerate(rafts):
@@ -681,7 +681,7 @@ for p, name in enumerate(['front', 'rear']):
         f0 = np.append(f[0], f[0][0])
         f1 = np.append(f[1], f[1][0])
         plt.plot(f0, f1, '-', linewidth=0.7)
-        plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize='smaller',
+        plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize=6,
                  verticalalignment='center', horizontalalignment='center')
     plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
     plt.legend(loc='lower right')
