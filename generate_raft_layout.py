@@ -577,7 +577,7 @@ for iter in range(max_iters):
         break
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
-# print stats and write table
+# collate stats into table
 global_gaps.sort('id')
 t.sort('id')
 for key in gap_mag_keys:
@@ -599,100 +599,111 @@ neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
-t_str = '\n' + '\n'.join(t.pformat_all())
-logger.info(t_str)
-n_rafts = len(rafts)
-n_robots = n_rafts*72
-basename = f'{timestamp}_{focsurf_name}_{n_rafts}rafts_{n_robots}robots'
-filename = basename + '.csv'
-t.write(filename, overwrite=True)
-logger.info(f'Saved table to {os.path.abspath(filename)}')
-print_stats(t, gap_mag_keys + ['radius'])
-logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
-            f' {t["max_front_vertex_radius"].max():.3f} mm on raft {t[t["max_front_vertex_radius"].argmax()]["id"]}.')
-poly_exceeds_vigR = t['id', 'max_front_vertex_radius'][t['max_front_vertex_radius'] > vigR]
-poly_exceeds_vigR_str = '\n'.join(poly_exceeds_vigR.pformat_all())
-logger.info(f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some vertex at the focal surface which is'
-            f' outside the nominal vignette radius of {vigR:.3f} mm:\n{poly_exceeds_vigR_str}')
 
-# plot rafts
-max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
-fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
-ax = fig.add_subplot(projection='3d', proj_type='ortho')
-outlines = []
-for i, raft in enumerate(rafts):
-    if i >= max_rafts_to_plot:
-        break
-    f = np.transpose(raft.poly3d)
-    ax.plot(f[0], f[1], f[2], '-', linewidth=0.7)
+# output tables and plots for both the full array and a restricted-to-within-vignette circle array
+overall_max_front_vertex_radius = t["max_front_vertex_radius"].max()
+limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB, overall_max_front_vertex_radius]
+limit_radii = sorted(limit_radii, reverse=True)  # start with largest and work inward
+for limit_radius in limit_radii:
+    logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
+    subselection = t['max_front_vertex_radius'] <= limit_radius
+    t2 = t[subselection]
+    rafts2 = [raft for raft in rafts if raft.id in t2['id']]
+    n_rafts = len(rafts2)
+    n_robots = n_rafts*72
+    logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
+    t2_str = '\n' + '\n'.join(t2.pformat_all())
+    logger.info(t2_str)
+    basename = f'{timestamp}_{focsurf_name}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+    filename = basename + '.csv'
+    t2.write(filename, overwrite=True)
+    logger.info(f'Saved table to {os.path.abspath(filename)}')
+    print_stats(t2, gap_mag_keys + ['radius'])
+    logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
+                f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
+    poly_exceeds_vigR = t2['id', 'max_front_vertex_radius'][t2['max_front_vertex_radius'] > vigR]
+    poly_exceeds_vigR_str = '\n'.join(poly_exceeds_vigR.pformat_all())
+    logger.info(f'With limit radius {limit_radius:.3f} mm, {len(poly_exceeds_vigR)} of {n_rafts} rafts'
+                f' have some vertex at the focal surface which is outside the nominal vignette radius'
+                f' of {vigR:.3f} mm:\n{poly_exceeds_vigR_str}')
 
-# plot envelope
-ax.plot(envelope_x, envelope_y, envelope_z, 'k--', linewidth=1.0)
-
-# from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
-def set_axes_equal(ax):
-    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
-    cubes as cubes, etc..  This is one possible solution to Matplotlib's
-    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-    Input
-      ax: a matplotlib axis, e.g., as output from plt.gca().
-    '''
-    x_limits = ax.get_xlim3d()
-    y_limits = ax.get_ylim3d()
-    z_limits = ax.get_zlim3d()
-    x_range = abs(x_limits[1] - x_limits[0])
-    x_middle = np.mean(x_limits)
-    y_range = abs(y_limits[1] - y_limits[0])
-    y_middle = np.mean(y_limits)
-    z_range = abs(z_limits[1] - z_limits[0])
-    z_middle = np.mean(z_limits)
-    plot_radius = 0.5*max([x_range, y_range, z_range])
-    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
-    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
-    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
-
-set_axes_equal(ax)
-ax.set_xlabel('x (mm)')
-ax.set_ylabel('y (mm)')
-ax.set_zlabel('z (mm)')
-ax.set_box_aspect([1, 1, 1])
-ax.set_proj_type('ortho')
-
-num_text = f'{n_rafts} rafts --> {n_robots} robots'
-plt.title(f'{timestamp}\n{num_text}')
-
-views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
-for i, view in enumerate(views):
-    ax.azim = view[0]
-    ax.elev = view[1]
-    filename = f'{basename}_view{i}.png'
-    filepath = os.path.join(logdir, filename)
-    plt.savefig(filepath)
-    logger.info(f'Saved 3D plot to {filepath}')
-
-# 2d raft plots
-plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
-for p, name in enumerate(['front', 'rear']):
-    plt.subplot(1, 2, p + 1)
-    for i, raft in enumerate(rafts):
+    # plot rafts
+    max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
+    fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
+    ax = fig.add_subplot(projection='3d', proj_type='ortho')
+    outlines = []
+    for i, raft in enumerate(rafts2):
         if i >= max_rafts_to_plot:
             break
-        f = np.transpose(eval(f'raft.{name}_poly'))
-        f0 = np.append(f[0], f[0][0])
-        f1 = np.append(f[1], f[1][0])
-        plt.plot(f0, f1, '-', linewidth=0.7)
-        plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize=6,
-                 verticalalignment='center', horizontalalignment='center')
-    plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
-    plt.legend(loc='lower right')
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('equal')
-    plt.title(f'raft {name} faces')
-filename = f'{basename}_2D.png'
-filepath = os.path.join(logdir, filename)
-plt.savefig(filepath)
-logger.info(f'Saved 2D plot to {filepath}')
+        f = np.transpose(raft.poly3d)
+        ax.plot(f[0], f[1], f[2], '-', linewidth=0.7)
+
+    # plot envelope
+    ax.plot(envelope_x, envelope_y, envelope_z, 'k--', linewidth=1.0)
+
+    # from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
+    def set_axes_equal(ax):
+        '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+        cubes as cubes, etc..  This is one possible solution to Matplotlib's
+        ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+        Input
+        ax: a matplotlib axis, e.g., as output from plt.gca().
+        '''
+        x_limits = ax.get_xlim3d()
+        y_limits = ax.get_ylim3d()
+        z_limits = ax.get_zlim3d()
+        x_range = abs(x_limits[1] - x_limits[0])
+        x_middle = np.mean(x_limits)
+        y_range = abs(y_limits[1] - y_limits[0])
+        y_middle = np.mean(y_limits)
+        z_range = abs(z_limits[1] - z_limits[0])
+        z_middle = np.mean(z_limits)
+        plot_radius = 0.5*max([x_range, y_range, z_range])
+        ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+        ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+        ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
+    set_axes_equal(ax)
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+    ax.set_zlabel('z (mm)')
+    ax.set_box_aspect([1, 1, 1])
+    ax.set_proj_type('ortho')
+
+    plt.title(basename)
+    views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
+    for i, view in enumerate(views):
+        ax.azim = view[0]
+        ax.elev = view[1]
+        filename = f'{basename}_view{i}.png'
+        filepath = os.path.join(logdir, filename)
+        plt.savefig(filepath)
+        logger.info(f'Saved 3D plot to {filepath}')
+
+    # 2d raft plots
+    plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
+    for p, name in enumerate(['front', 'rear']):
+        plt.subplot(1, 2, p + 1)
+        for i, raft in enumerate(rafts2):
+            if i >= max_rafts_to_plot:
+                break
+            f = np.transpose(eval(f'raft.{name}_poly'))
+            f0 = np.append(f[0], f[0][0])
+            f1 = np.append(f[1], f[1][0])
+            plt.plot(f0, f1, '-', linewidth=0.7)
+            plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize=6,
+                    verticalalignment='center', horizontalalignment='center')
+        plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
+        plt.legend(loc='lower right')
+        plt.xlabel('x (mm)')
+        plt.ylabel('y (mm)')
+        plt.axis('equal')
+        plt.title(f'raft {name} faces')
+    plt.suptitle(basename)
+    filename = f'{basename}_2D.png'
+    filepath = os.path.join(logdir, filename)
+    plt.savefig(filepath)
+    logger.info(f'Saved 2D plot to {filepath}')
 
 # convergence plots
 plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
