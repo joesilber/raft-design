@@ -654,6 +654,29 @@ for i, view in enumerate(views):
     plt.savefig(filepath)
     logger.info(f'Saved 3D plot to {filepath}')
 
+# 2d raft plots
+plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
+for p, name in enumerate(['front', 'rear']):
+    plt.subplot(1, 2, p + 1)
+    for i, raft in enumerate(rafts):
+        if i >= max_rafts_to_plot:
+            break
+        f = np.transpose(eval(f'raft.{name}_poly'))
+        f0 = np.append(f[0], f[0][0])
+        f1 = np.append(f[1], f[1][0])
+        plt.plot(f0, f1, '-', linewidth=0.7)
+    plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
+    plt.legend(loc='lower right')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('equal')
+    plt.title(f'raft {name} faces')
+filename = f'{basename}_2D.png'
+filepath = os.path.join(logdir, filename)
+plt.savefig(filepath)
+logger.info(f'Saved 2D plot to {filepath}')
+
+# convergence plots
 plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
 i = 0
 nparams = len(convergence_params)
