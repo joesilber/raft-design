@@ -66,8 +66,7 @@ parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, 
 parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
-parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
-parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
+parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-i', '--max_iters', type=int, default=200, help='maximum iterations for optimization of layout')
 userargs = parser.parse_args()
 logger.info(f'User inputs: {userargs}')
@@ -351,14 +350,24 @@ else:
 gap_expansion_factor = 2.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
 spacing_x = RB + front_gap / (math.sqrt(3)/2) * gap_expansion_factor
 spacing_y = spacing_x * math.sqrt(3)/2
-half_width_count = math.ceil(vigR / spacing_x) + 1
-rng = range(-half_width_count, half_width_count+1)
+if userargs.offset == 'hex':
+    offset_x = spacing_x * 3**0.5 / 2
+    offset_y = spacing_y / 3**0.5 / 2
+elif userargs.offset == 'tri':
+    offset_x = 0.0
+    offset_y = 0.0
+else:
+    assert False, f'user argument "{userargs.offset}" for offset not recognized'
+logger.info(f'Initial hex grid spacing_x = {spacing_x:7.3f}, offset_x = {offset_x:7.3f}')
+logger.info(f'Initial hex grid spacing_y = {spacing_y:7.3f}, offset_y = {offset_y:7.3f}')
+half_width_count = math.ceil(vigR / spacing_x) + 2
+rng = range(-half_width_count, half_width_count + 1)
 natural_grid = {'x': [], 'y': [], 'spin0': []}
 for j in rng:
-    x = [spacing_x*i + userargs.x_offset for i in rng]
+    x = [spacing_x*i + offset_x for i in rng]  #  (note base*sqrt(3)/2 often useful)
     if j % 2:
         x = [u + spacing_x/2 for u in x]
-    y = [spacing_y*j + userargs.y_offset]*len(x)
+    y = [spacing_y*j + offset_y]*len(x)   # (note base/sqrt(3)/2 often useful)
 
     # upward pointing triangles
     natural_grid['x'] += x
@@ -392,7 +401,7 @@ envelope_z = np.zeros_like(envelope_x)
 
 # vignette & wedge raft selection
 raft_position_radii = np.hypot(grid['x'], grid['y'])
-remove = raft_position_radii > vigR
+remove = raft_position_radii > vigR + spacing_x
 if not_full_circle:
     raft_position_angles = np.degrees(np.arctan2(grid['y'], grid['x']))
     remove |= raft_position_angles > max(0, userargs.wedge)
