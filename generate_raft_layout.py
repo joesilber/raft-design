@@ -519,6 +519,7 @@ fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
 moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
 logger.info('Beginning nudging.')
 logger.info(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
+logger.info(f'Nudge factors are {nudge_factor}.')
 logger.info(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
 for iter in range(max_iters):
     upper_gap_mags, lower_gap_mags, these_raft_radii = [], [], []
