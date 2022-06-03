@@ -615,6 +615,11 @@ for limit_radius in limit_radii:
     t2_str = '\n' + '\n'.join(t2.pformat_all())
     logger.info(t2_str)
     basename = f'{timestamp}_{focsurf_name}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+    if limit_radii.index(limit_radius) == 0:
+        basename0 = basename
+    typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm\n' \
+               f'NumRafts: {n_rafts}, NumRobots: {n_robots}' \
+               f', MinGapFront: {t2["min_gap_front"].min():.1f} mm, MinGapRear: {t2["min_gap_rear"].min():.1f} mm'
     filename = basename + '.csv'
     t2.write(filename, overwrite=True)
     logger.info(f'Saved table to {os.path.abspath(filename)}')
@@ -670,7 +675,7 @@ for limit_radius in limit_radii:
     ax.set_box_aspect([1, 1, 1])
     ax.set_proj_type('ortho')
 
-    plt.title(basename)
+    plt.title(typtitle)
     views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
     for i, view in enumerate(views):
         ax.azim = view[0]
@@ -691,15 +696,16 @@ for limit_radius in limit_radii:
             f0 = np.append(f[0], f[0][0])
             f1 = np.append(f[1], f[1][0])
             plt.plot(f0, f1, '-', linewidth=0.7)
-            plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize=6,
+            plt.text(np.mean(f[0]), np.mean(f[1]), f'{raft.id:03}', family='monospace', fontsize=6,
                     verticalalignment='center', horizontalalignment='center')
-        plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
+        plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0,
+                 label=f'vignette @ R{vigR:.1f}')
         plt.legend(loc='lower right')
         plt.xlabel('x (mm)')
         plt.ylabel('y (mm)')
         plt.axis('equal')
         plt.title(f'raft {name} faces')
-    plt.suptitle(basename)
+    plt.suptitle(typtitle)
     filename = f'{basename}_2D.png'
     filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
@@ -720,8 +726,8 @@ for key, data in convergence_params.items():
     plt.plot(deltas, label=f'delta {key}')
     plt.legend(loc='upper right')
     plt.grid(True)
-plt.suptitle(f'raft layout convergence parameters\nall units mm')
-filename = f'{basename}_convergence.png'
+plt.suptitle(f'raft layout convergence parameters - run {timestamp} - all units mm')
+filename = f'{basename0}_convergence.png'
 filepath = os.path.join(logdir, filename)
 plt.savefig(filepath)
 logger.info(f'Saved convergence plot to {filepath}')
