@@ -680,6 +680,8 @@ for p, name in enumerate(['front', 'rear']):
         f0 = np.append(f[0], f[0][0])
         f1 = np.append(f[1], f[1][0])
         plt.plot(f0, f1, '-', linewidth=0.7)
+        plt.text(raft.x, raft.y, f'{raft.id:03}', family='monospace', fontsize='smaller',
+                 verticalalignment='center', horizontalalignment='center')
     plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0, label='vignette')
     plt.legend(loc='lower right')
     plt.xlabel('x (mm)')
