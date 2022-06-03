@@ -63,7 +63,7 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.A
 parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add_argument('-g', '--raft_gap', type=float, default=2.0, help='mm, minimum gap between rafts')
+parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
@@ -577,20 +577,20 @@ if should_iterate:
             s += f'\n  {key:>14} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
         logger.info(s)
         num_deltas_per_param = len(deltas_list)
+        num_iters_performed = iter + 1
         if all(np.abs(convergence_deltas_merged) <= convergence_criterion) and num_deltas_per_param >= convergence_criterion_repeats:
             logger.info(f'Last {num_deltas_per_param} convergence parameters all changed by <= criterion {convergence_criterion}'
                     f' for all parameters {tuple(convergence_params)}.')
-            logger.info(f'Nudging complete after {iter + 1} iterations.')
+            logger.info(f'Nudging complete after {num_iters_performed} iterations.')
             break
-        if iter == userargs.max_iters - 1:
-            logger.info(f'Nudging halted without passing convergence criteria after max ({iter + 1}) iterations.')
+        if num_iters_performed >= userargs.max_iters:
+            logger.info(f'Nudging halted without passing convergence criteria after max ({num_iters_performed}) iterations.')
             break
-    num_iters_performed = iter + 1
-    iter_text = 'Outward-in nudging ({num_iters_performed} iterations) with initial front gap'
+    iter_text = f'Outward-in nudging ({num_iters_performed} iterations) with initial front gap'
 else:
     logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
-    iter_text = 'Uniform spacing with nominal front gap'
+    iter_text = f'Uniform spacing with nominal front gap'
 iter_text += f' = {initial_front_gap:.2f} mm'
 
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
@@ -748,7 +748,7 @@ if should_iterate:
         plt.plot(deltas, label=f'delta {key}')
         plt.legend(loc='upper right')
         plt.grid(True)
-    plt.suptitle(f'Raft layout convergence parameters\nRun: {timestamp}, Iterations: {iters + 1}, all units mm')
+    plt.suptitle(f'Raft layout convergence parameters\nRun: {timestamp}, Iterations: {num_iters_performed}, all units mm')
     filename = f'{basename0}_convergence.png'
     filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
