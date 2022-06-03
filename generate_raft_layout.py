@@ -632,7 +632,7 @@ for limit_radius in limit_radii:
     logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
     t2_str = '\n' + '\n'.join(t2.pformat_all())
     logger.info(t2_str)
-    basename = f'{timestamp}_{focsurf_name}_limitR{limit_radius:.1f}_iters{num_iters_performed}_nrafts{n_rafts}_nrobots{n_robots}'
+    basename = f'{timestamp}_{focsurf_name}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_iters{num_iters_performed}_nrafts{n_rafts}_nrobots{n_robots}'
     if limit_radii.index(limit_radius) == 0:
         basename0 = basename
     typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm' \
