@@ -357,7 +357,7 @@ spacing_x = RB + initial_gap / (math.sqrt(3)/2)
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
-    offset_y = spacing_y / 3**0.5 / 2
+    offset_y = spacing_x / 3**0.5 / 2
 elif userargs.offset == 'tri':
     offset_x = 0.0
     offset_y = 0.0
