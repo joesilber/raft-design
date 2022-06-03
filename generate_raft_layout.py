@@ -138,7 +138,7 @@ h2 = RB / 3**0.5 / 2 # height from base of triangle to center
 h3 = RB / 3**0.5  # height from center of triangle to tip
 CB = RC * 2 / 3**0.5  # chamfer base length
 raft_profile_x = [RB/2-CB,  RB/2-CB/2,    CB/2,    -CB/2,  -RB/2+CB/2,   -RB/2+CB]
-raft_profile_y = [    -h3,      CB-h3,   h2-CB,    h2-CB,       CB-h3,        -h3]
+raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h2]
 raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 
