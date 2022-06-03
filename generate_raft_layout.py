@@ -594,9 +594,10 @@ logger.info(f'Saved table to {os.path.abspath(filename)}')
 print_stats(t, gap_mag_keys + ['radius'])
 logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
             f' {t["max_front_vertex_radius"].max():.3f} mm on raft {t[t["max_front_vertex_radius"].argmax()]["id"]}.')
-poly_exceeds_vigR = t['id'][t['max_front_vertex_radius'] > vigR]
-logger.info(f'{len(poly_exceeds_vigR)} of {n_rafts} have some vertex at the focal surface which is'
-            f' outside the nominal vignette radius of {vigR:.3f} mm. Raft ids: {poly_exceeds_vigR}')
+poly_exceeds_vigR = t['id', 'max_front_vertex_radius'][t['max_front_vertex_radius'] > vigR]
+poly_exceeds_vigR_str = '\n'.join(poly_exceeds_vigR.pformat_all())
+logger.info(f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some vertex at the focal surface which is'
+            f' outside the nominal vignette radius of {vigR:.3f} mm:\n{poly_exceeds_vigR_str}')
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
