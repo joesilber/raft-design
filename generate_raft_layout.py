@@ -29,7 +29,6 @@ logdir = os.getcwd()
 logname = f'{timestamp}_generate_raft_layout.log'
 logpath = os.path.join(logdir, logname)
 logger, _, _ = simple_logger.start_logger(logpath)
-logger.info(f'Logging to {logpath}.')
 
 # GEOMETRY OF FOCAL SURFACE DESIGNS
 # ---------------------------------
@@ -69,7 +68,7 @@ parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, c
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x offset the seed of raft pattern (note base*sqrt(3)/2 often useful)')
 parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
-parser.add_argument('-i', '--max_iters', type=int, default=4, help='maximum iterations for optimization of layout')
+parser.add_argument('-i', '--max_iters', type=int, default=200, help='maximum iterations for optimization of layout')
 userargs = parser.parse_args()
 
 # set up geometry functions
@@ -217,19 +216,19 @@ class Raft:
         return poly3d
 
     @property
-    def max_vertex_radius(self):
+    def max_front_vertex_radius(self):
         '''maximum distance from the z-axis of any point in the 3d raft polygon'''
-        return max(self._vertex_radii)
+        return max(self._front_vertex_radii)
 
     @property
-    def min_vertex_radius(self):
+    def min_front_vertex_radius(self):
         '''minimum distance from the z-axis of any point in the 3d raft polygon'''
-        return min(self._vertex_radii)
+        return min(self._front_vertex_radii)
 
     @property
-    def _vertex_radii(self):
+    def _front_vertex_radii(self):
         '''return distances of all points in the 3d raft polygon from the z-axis'''
-        all_points = np.transpose(self.poly3d)
+        all_points = np.transpose(self.front_poly)
         return np.hypot(all_points[0], all_points[1])
 
     def front_gap(self, other_raft):
@@ -401,7 +400,7 @@ t = Table(grid)
 t['radius'] = np.hypot(t['x'], t['y'])
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
 other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
-              'max_vertex_radius': float, 'min_vertex_radius': float}
+              'max_front_vertex_radius': float, 'min_front_vertex_radius': float}
 for col, typecast in other_cols.items():
     t[col] = [typecast(0)]*len(t)
 
@@ -495,7 +494,7 @@ nudge_factor = {'min': 0.6,  # fraction to nudge the smallest of a given polygon
 nudge_tol = 0.05  # mm, with respect to desired gap error
 convergence_criterion = 0.05  # mm
 convergence_criterion_repeats = 3  # number of successive iterations where all convergence params must change by no more than criterion
-convergence_params = {'max_radius': [], 'max_gap': [], 'min_gap': []}
+convergence_params = {'min_gap': [], 'max_gap': [], 'max_ctr_radius': [], 'max_vtx_radius': []}
 primary = 'rear' if is_convex else 'front'
 secondary = 'front' if is_convex else 'rear'
 nudge_attempt_order = [f'max_gap_{primary}', f'max_gap_{secondary}', f'min_gap_{primary}', f'min_gap_{secondary}']
@@ -536,7 +535,8 @@ for iter in range(max_iters):
             logger.info(f'Iteration {iter}: Nudges applied through raft {count + 1}'
                        f' of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
     these_gaps = upper_gap_mags + lower_gap_mags
-    convergence_params['max_radius'] += [max(these_raft_radii)]
+    convergence_params['max_ctr_radius'] += [max(these_raft_radii)]
+    convergence_params['max_vtx_radius'] += [max([raft.max_front_vertex_radius for raft in rafts])]
     convergence_params['max_gap'] += [max(these_gaps)]
     convergence_params['min_gap'] += [min(these_gaps)]
     delta_select = convergence_criterion_repeats + 1
@@ -548,7 +548,7 @@ for iter in range(max_iters):
         convergence_deltas_merged += deltas_list
     s = f'Nudge iteration {iter} complete.'
     for key in convergence_params:
-        s += f'\n  {key:>10} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
+        s += f'\n  {key:>14} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
     logger.info(s)
     num_deltas_per_param = len(deltas_list)
     if all(np.abs(convergence_deltas_merged) <= convergence_criterion) and num_deltas_per_param >= convergence_criterion_repeats:
@@ -577,8 +577,8 @@ for raft in rafts:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
     row['id'] = raft.id
-    row['max_vertex_radius'] = raft.max_vertex_radius
-    row['min_vertex_radius'] = raft.min_vertex_radius
+    row['max_front_vertex_radius'] = raft.max_front_vertex_radius
+    row['min_front_vertex_radius'] = raft.min_front_vertex_radius
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
@@ -592,8 +592,11 @@ filename = basename + '.csv'
 t.write(filename, overwrite=True)
 logger.info(f'Saved table to {os.path.abspath(filename)}')
 print_stats(t, gap_mag_keys + ['radius'])
-logger.info(f'Maximum radius of any vertex in any polygon is {t["max_vertex_radius"].max()} mm'
-            f' on raft {t[t["max_vertex_radius"].argmax()]["id"]}.')
+logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
+            f' {t["max_front_vertex_radius"].max():.3f} mm on raft {t[t["max_front_vertex_radius"].argmax()]["id"]}.')
+poly_exceeds_vigR = t['id'][t['max_front_vertex_radius'] > vigR]
+logger.info(f'{len(poly_exceeds_vigR)} of {n_rafts} have some vertex at the focal surface which is'
+            f' outside the nominal vignette radius of {vigR:.3f} mm. Raft ids: {poly_exceeds_vigR}')
 
 # plot rafts
 max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
@@ -652,13 +655,14 @@ for i, view in enumerate(views):
 
 plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
 i = 0
+nparams = len(convergence_params)
 for key, data in convergence_params.items():
     i += 1
-    plt.subplot(2, 3, i)
+    plt.subplot(2, nparams, i)
     plt.plot(data, label=key)
     plt.legend(loc='upper right')
     plt.grid(True)
-    plt.subplot(2, 3, i + 3)
+    plt.subplot(2, nparams, i + nparams)
     deltas = [0] + np.diff(data).tolist()
     plt.plot(deltas, label=f'delta {key}')
     plt.legend(loc='upper right')
