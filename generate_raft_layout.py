@@ -64,10 +64,12 @@ parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
-parser.add_argument('-c', '--raft_chamfer', type=float, default=8.6, help='mm, chamfer at triangle tips')
+parser.add_argument('-c', '--raft_chamfer', type=float, default=2.5, help='mm, chamfer at triangle tips')
+parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm, chamfer to instrumented area of raft')
+parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
 parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
-parser.add_argument('-i', '--max_iters', type=int, default=200, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
+parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
 userargs = parser.parse_args()
 logger.info(f'User inputs: {userargs}')
 
@@ -149,9 +151,17 @@ raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
 
+# single raft instrumented area
+instr_base = RB - userargs.instr_wall * 2 * 3**0.5
+instr_chamfer_adjusted_for_wall = userargs.instr_chamfer - 2 * userargs.instr_wall
+instr_chamfer_base = instr_chamfer_adjusted_for_wall * 2 / 3**0.5
+instr_chamfer_area = instr_chamfer_base**2 * 3**.5 / 4
+instr_triangle_area = instr_base**2 * 3**.5 / 4
+instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
+logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
+
 # offset to average out the defocus of all the robots on a raft
-raft_targetable_area = RB**2/2 - 3*RC**2/2
-above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
+above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= -1 if is_convex else +1
 logger.info(f'Focus offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
@@ -632,16 +642,37 @@ for limit_radius in limit_radii:
     logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
     t2_str = '\n' + '\n'.join(t2.pformat_all())
     logger.info(t2_str)
+
+    # instrumented area calcs
+    avg_spacing_x = RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
+    avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
+    logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
+    instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
+    logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
+    total_instr_area = instr_area_per_raft * n_rafts
+    logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
+    surface_area_within_vigR = math.pi * R2S(vigR)**2
+    logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
+    total_instr_area_ratio = total_instr_area / surface_area_within_vigR
+    logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
+
+    # file names and plot titles
     basename = f'{timestamp}_{focsurf_name}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_iters{num_iters_performed}_nrafts{n_rafts}_nrobots{n_robots}'
     if limit_radii.index(limit_radius) == 0:
         basename0 = basename
     typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm' \
                f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
                f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
+               f'PerRaftAreaEffic: {instr_area_efficiency:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
+               f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}' \
                f'\nPatterningMethod: {iter_text}'
     filename = basename + '.csv'
+
+    # save table
     t2.write(filename, overwrite=True)
     logger.info(f'Saved table to {os.path.abspath(filename)}')
+    
+    # print out more statistics
     print_stats(t2, gap_mag_keys + ['radius'])
     logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
                 f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
@@ -652,6 +683,8 @@ for limit_radius in limit_radii:
     poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
     poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else '.'
     logger.info(poly_exceeds_vigR_str)
+
+
 
     # plot rafts
     max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
