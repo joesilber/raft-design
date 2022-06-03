@@ -351,7 +351,7 @@ gap_expansion_factor = 2.0  # over-expands the nominal pattern, with goal of ass
 spacing_x = RB + front_gap / (math.sqrt(3)/2) * gap_expansion_factor
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
-    offset_x = spacing_x * 3**0.5 / 2
+    offset_x = spacing_x / 2
     offset_y = spacing_y / 3**0.5 / 2
 elif userargs.offset == 'tri':
     offset_x = 0.0
