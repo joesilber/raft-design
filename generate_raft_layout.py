@@ -352,15 +352,13 @@ if is_convex:
     delta_gap_rad = (userargs.raft_gap + RB) / (sphR - RL)
     front_gap = (max_delta_crd_rad + delta_gap_rad) * sphR - RB
 else:
-    delta_gap_rad = userargs.raft_gap / sphR
-    bidirectional_total_angle = math.acos(math.cos(delta_gap_rad)**2)
-    front_gap = sphR * bidirectional_total_angle
+    front_gap = userargs.raft_gap
 gap_expansion_factor = 2.0 if should_iterate else 1.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
 initial_front_gap = front_gap * gap_expansion_factor
 logger.info(f'Unexpanded intial front gap: {front_gap:.3f} mm')
 logger.info(f'Initial gap expansion factor: {gap_expansion_factor}')
 logger.info(f'Expanded initial front gap: {initial_front_gap:.3f} mm')
-spacing_x = RB + initial_front_gap / (math.sqrt(3)/2)
+spacing_x = RB + initial_front_gap * math.sqrt(3)
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
@@ -376,10 +374,10 @@ half_width_count = math.ceil(vigR / spacing_x) + 2
 rng = range(-half_width_count, half_width_count + 1)
 natural_grid = {'x': [], 'y': [], 'spin0': []}
 for j in rng:
-    x = [spacing_x*i + offset_x for i in rng]  #  (note base*sqrt(3)/2 often useful)
+    x = [spacing_x*i + offset_x for i in rng]
     if j % 2:
         x = [u + spacing_x/2 for u in x]
-    y = [spacing_y*j + offset_y]*len(x)   # (note base/sqrt(3)/2 often useful)
+    y = [spacing_y*j + offset_y]*len(x)
 
     # upward pointing triangles
     natural_grid['x'] += x
@@ -592,7 +590,7 @@ if should_iterate:
 else:
     logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
-    iter_text = 'Uniform spacing with calculated front gap'
+    iter_text = 'Uniform spacing with nominal front gap'
 iter_text += f' = {initial_front_gap:.2f} mm'
 
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
