@@ -70,10 +70,13 @@ parser.add_argument('-xo', '--x_offset', type=float, default=0.0, help='mm, x of
 parser.add_argument('-yo', '--y_offset', type=float, default=0.0, help='mm, y offset the seed of raft pattern (note base/sqrt(3)/2 often useful)')
 parser.add_argument('-i', '--max_iters', type=int, default=200, help='maximum iterations for optimization of layout')
 userargs = parser.parse_args()
+logger.info(f'User inputs: {userargs}')
 
 # set up geometry functions
 focsurf_name = focsurfs_index[userargs.focal_surface_number]
 focsurf = focal_surfaces[focsurf_name]
+logger.info(f'Focal surface name: {focsurf_name}')
+logger.info(f'Focal surface parameters: {focsurf}')
 CRD2R_undefined = False
 if all(label in focsurf for label in {'Z', 'CRD'}):
     R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
@@ -127,6 +130,7 @@ result = optimize.least_squares(fun=calc_sphR_err, x0=z_guess)
 z_ctr = float(result.x)
 sphR = abs(z_ctr)
 is_convex = np.sign(z_ctr) < 1  # convention where +z is toward the fiber tips
+logger.info(f'Best-fit sphere radius = {sphR:.3f} mm, is_convex = {is_convex}')
 
 # basic raft outline
 RB = userargs.raft_tri_base
@@ -140,12 +144,14 @@ raft_profile_x = [RB/2-CB,  RB/2-CB/2,    CB/2,    -CB/2,  -RB/2+CB/2,   -RB/2+C
 raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h2]
 raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
+logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
 
 # offset to average out the defocus of all the robots on a raft
 raft_targetable_area = RB**2/2 - 3*RC**2/2
 above_below_equal_area_radius = (raft_targetable_area/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= -1 if is_convex else +1
+logger.info(f'Focus offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
 
 _raft_id_counter = 0
 class Raft:
