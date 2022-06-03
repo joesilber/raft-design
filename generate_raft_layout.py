@@ -331,7 +331,7 @@ class Raft:
 # iteration options
 should_iterate = userargs.max_iters > 0
 if not should_iterate:
-    logger.info('Patterning will be performed non-iteratively.')
+    logger.info(f'Patterning will be performed non-iteratively.')
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
@@ -522,7 +522,7 @@ if should_iterate:
     rafts_radii = [raft.r for raft in rafts]
     fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
     moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
-    logger.info('Beginning nudging.')
+    logger.info(f'Beginning nudging.')
     logger.info(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
     logger.info(f'Nudge factors are {nudge_factor}.')
     logger.info(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
@@ -583,7 +583,7 @@ if should_iterate:
     num_iters_performed = iter + 1
     iter_text = 'Outward-in nudging ({num_iters_performed} iterations) with initial front gap'
 else:
-    logger.info('Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
+    logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
     iter_text = 'Uniform spacing with calculated front gap'
 iter_text += f' = {initial_gap:.2f} mm'
@@ -641,10 +641,12 @@ for limit_radius in limit_radii:
     logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
                 f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
     poly_exceeds_vigR = t2['id', 'max_front_vertex_radius'][t2['max_front_vertex_radius'] > vigR]
-    poly_exceeds_vigR_str = '\n'.join(poly_exceeds_vigR.pformat_all())
-    logger.info(f'With limit radius {limit_radius:.3f} mm, {len(poly_exceeds_vigR)} of {n_rafts} rafts'
-                f' have some vertex at the focal surface which is outside the nominal vignette radius'
-                f' of {vigR:.3f} mm:\n{poly_exceeds_vigR_str}')
+    poly_exceeds_vigR_tbl_str = '\n'.join(poly_exceeds_vigR.pformat_all())
+    poly_exceeds_vigR_str = f'With limit radius {limit_radius:.3f} mm, '
+    poly_exceeds_vigR_str += f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some' if poly_exceeds_vigR else 'no rafts have any'
+    poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
+    poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else ''
+    logger.info(poly_exceeds_vigR_str)
 
     # plot rafts
     max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
