@@ -139,6 +139,10 @@ h1 = RB * 3**0.5 / 2  # height from base of triangle to opposite tip
 h2 = RB / 3**0.5 / 2 # height from base of triangle to center
 h3 = RB / 3**0.5  # height from center of triangle to tip
 CB = RC * 2 / 3**0.5  # chamfer base length
+for key, val in {'length (RL)': RL, 'triangle base (RB)': RB, 'triangle height (h1)': h1,
+                 'triangle base to center (h2)': h2, 'triangle center to tip (h3)': h3,
+                 'corner chamfer height (RC)': RC, 'corner chamfer base (CB)': CB}.items():
+    logger.info(f'Raft geometry {key.upper()} = {val:.3f}')
 raft_profile_x = [RB/2-CB,  RB/2-CB/2,    CB/2,    -CB/2,  -RB/2+CB/2,   -RB/2+CB]
 raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h2]
 raft_profile_z = [0.0]*len(raft_profile_x)
@@ -352,8 +356,11 @@ else:
     bidirectional_total_angle = math.acos(math.cos(delta_gap_rad)**2)
     front_gap = sphR * bidirectional_total_angle
 gap_expansion_factor = 2.0 if should_iterate else 1.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
-initial_gap = front_gap * gap_expansion_factor
-spacing_x = RB + initial_gap / (math.sqrt(3)/2)
+initial_front_gap = front_gap * gap_expansion_factor
+logger.info(f'Unexpanded intial front gap: {front_gap:.3f} mm')
+logger.info(f'Initial gap expansion factor: {gap_expansion_factor}')
+logger.info(f'Expanded initial front gap: {initial_front_gap:.3f} mm')
+spacing_x = RB + initial_front_gap / (math.sqrt(3)/2)
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
@@ -586,7 +593,7 @@ else:
     logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
     iter_text = 'Uniform spacing with calculated front gap'
-iter_text += f' = {initial_gap:.2f} mm'
+iter_text += f' = {initial_front_gap:.2f} mm'
 
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
@@ -645,7 +652,7 @@ for limit_radius in limit_radii:
     poly_exceeds_vigR_str = f'With limit radius {limit_radius:.3f} mm, '
     poly_exceeds_vigR_str += f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some' if poly_exceeds_vigR else 'no rafts have any'
     poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
-    poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else ''
+    poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else '.'
     logger.info(poly_exceeds_vigR_str)
 
     # plot rafts
