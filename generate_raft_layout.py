@@ -663,7 +663,7 @@ for limit_radius in limit_radii:
     typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm' \
                f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
                f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
-               f'PerRaftAreaEffic: {instr_area_efficiency:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
+               f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
                f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}' \
                f'\nPatterningMethod: {iter_text}'
     filename = basename + '.csv'
