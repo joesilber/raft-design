@@ -71,6 +71,7 @@ parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle 
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
+transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
 parser.add_argument('-t', '--transforms',action='append', help=f'specify custom transformations for specific rafts (in mm and deg), formatted like {transform_template}. The \'id\' key references a specific raft to be adjusted, which presumably you know from inspecting results a previous, otherwise-identical, run of this same code. To adjust multiple rafts, just repeat the command, like: {example_mult_transform_args}. Hint: you must enclose each dict in " at the command line, and use \' around keys')
 userargs = parser.parse_args()
@@ -78,11 +79,11 @@ logger.info(f'User inputs: {userargs}')
 
 # validate the custom transform input
 import json
-transforms = [json.loads(x.replace("'", '"')) for x in userargs.transforms]
-simple_logger.assert2(all(isinstance(x, dict) for x in transforms), 'not all elements of transforms input are dicts, check that the input is a list of dicts as shown --help')
-simple_logger.assert2(all(all(key in transform_template for key in x) for x in transforms), 'not all keys recognized in transforms input')
-simple_logger.assert2(all(isinstance(x['id'], int) and x['id'] >= 0 for x in transforms), 'not all raft ids in transforms input are ints >= 0')
-simple_logger.assert2(all(all(isinstance(val, float) for key, val in x.items() if key != 'id') for x in transforms), 'not all transform values are floats')
+user_transforms = [json.loads(x.replace("'", '"')) for x in userargs.transforms]
+simple_logger.assert2(all(isinstance(x, dict) for x in user_transforms), 'not all elements of transforms input are dicts, check that the input is a list of dicts as shown --help')
+simple_logger.assert2(all(all(key in transform_template for key in x) for x in user_transforms), f'not all keys recognized in transforms input. valid keys are {transform_template.keys()}')
+simple_logger.assert2(all(isinstance(x['id'], int) and x['id'] >= 0 for x in user_transforms), 'not all raft ids in transforms input are ints >= 0')
+simple_logger.assert2(all(all(isinstance(val, (int, float)) for key, val in x.items() if key != 'id') for x in user_transforms), 'not all transform values are ints or floats')
 
 # set up geometry functions
 focsurf_name = focsurfs_index[userargs.focal_surface_number]
@@ -456,8 +457,20 @@ for row in t:
     raft = Raft(x=row['x'], y=row['y'], spin0=row['spin0'])
     rafts += [raft]
     row['id'] = raft.id
+id_rafts = {raft.id: raft for raft in rafts}  # for lookup convenience
 
 # apply custom transforms
+for transform in user_transforms:
+    id = transform['id']
+    simple_logger.assert2(id in id_rafts, f'no raft found with id {id}')
+    raft = id_rafts[id]
+    for key, delta in transform.items():
+        if key in transform_keymap:
+            adjust_key = transform_keymap[key]
+            old = getattr(raft, adjust_key)
+            new = old + delta
+            setattr(raft, adjust_key, new)
+            t[adjust_key][id] = new           
 
 # determine neighbors
 for raft in rafts:
