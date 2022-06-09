@@ -67,7 +67,7 @@ parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minim
 parser.add_argument('-c', '--raft_chamfer', type=float, default=2.5, help='mm, chamfer at triangle tips')
 parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm, chamfer to instrumented area of raft')
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
-parser.add_argument('-w', '--wedge', type=float, default=360.0, help='deg, angle of wedge envelope, argue 360 for full circle')
+parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
 userargs = parser.parse_args()
