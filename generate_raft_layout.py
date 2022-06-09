@@ -630,7 +630,7 @@ t['neighbor_ids'] = neighbor_ids
 
 # output tables and plots for both the full array and a restricted-to-within-vignette circle array
 overall_max_front_vertex_radius = t["max_front_vertex_radius"].max()
-limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB, overall_max_front_vertex_radius]
+limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB]  # , overall_max_front_vertex_radius]
 limit_radii = sorted(limit_radii, reverse=True)  # start with largest and work inward
 for limit_radius in limit_radii:
     logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
