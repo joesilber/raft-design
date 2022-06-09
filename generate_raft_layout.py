@@ -70,8 +70,20 @@ parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, sh
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
+transform_template = [{'id':-1, 'dx':0.0, 'dy':0.0, 'dz': 0.0, 'dprecession':0.0, 'dnutation':0.0, 'dspin':0.0}]
+parser.add_argument('-t', '--transforms', default=str(transform_template), help='specify custom transformations for specific rafts (in mm and deg), according to this default template, a list of dicts, where each dict references a particular raft to be adjusted. input must include "id" and at least one of the transformation parameters. hint: you must enclose the list of dicts in "" at the command line')
 userargs = parser.parse_args()
 logger.info(f'User inputs: {userargs}')
+
+# validate the custom transform input
+import json
+transforms = json.loads(userargs.transforms.replace("'", '"'))
+if not isinstance(transforms, list):
+    transforms = [transforms]
+simple_logger.assert2(all(isinstance(x, dict) for x in transforms), 'not all elements of transforms input are dicts, check that the input is a list of dicts as shown --help')
+simple_logger.assert2(all(all(key in transform_template[0] for key in x) for x in transforms), 'not all keys recognized in transforms input')
+simple_logger.assert2(all(isinstance(x['id'], int) and x['id'] >= 0 for x in transforms), 'not all raft ids in transforms input are ints >= 0')
+simple_logger.assert2(all(all(isinstance(val, float) for key, val in x.items() if key != 'id') for x in transforms), 'not all transform values are floats')
 
 # set up geometry functions
 focsurf_name = focsurfs_index[userargs.focal_surface_number]
@@ -683,8 +695,6 @@ for limit_radius in limit_radii:
     poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
     poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else '.'
     logger.info(poly_exceeds_vigR_str)
-
-
 
     # plot rafts
     max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
