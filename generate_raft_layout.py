@@ -686,7 +686,7 @@ for limit_radius in limit_radii:
     logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
     total_instr_area = instr_area_per_raft * n_rafts
     logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
-    surface_area_within_vigR = math.pi * R2S(vigR)**2
+    surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
     logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
     total_instr_area_ratio = total_instr_area / surface_area_within_vigR
     logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
