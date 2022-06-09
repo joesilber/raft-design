@@ -73,12 +73,14 @@ parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iter
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
-parser.add_argument('-t', '--transforms',action='append', help=f'specify custom transformations for specific rafts (in mm and deg), formatted like {transform_template}. The \'id\' key references a specific raft to be adjusted, which presumably you know from inspecting results a previous, otherwise-identical, run of this same code. To adjust multiple rafts, just repeat the command, like: {example_mult_transform_args}. Hint: you must enclose each dict in " at the command line, and use \' around keys')
+parser.add_argument('-t', '--transforms', action='append', help=f'specify custom transformations for specific rafts (in mm and deg), formatted like {transform_template}. The \'id\' key references a specific raft to be adjusted, which presumably you know from inspecting results a previous, otherwise-identical, run of this same code. To adjust multiple rafts, just repeat the command, like: {example_mult_transform_args}. Hint: you must enclose each dict in " at the command line, and use \' around keys')
 userargs = parser.parse_args()
 logger.info(f'User inputs: {userargs}')
 
 # validate the custom transform input
 import json
+if not userargs.transforms:
+    userargs.transforms = []
 user_transforms = [json.loads(x.replace("'", '"')) for x in userargs.transforms]
 simple_logger.assert2(all(isinstance(x, dict) for x in user_transforms), 'not all elements of transforms input are dicts, check that the input is a list of dicts as shown --help')
 simple_logger.assert2(all(all(key in transform_template for key in x) for x in user_transforms), f'not all keys recognized in transforms input. valid keys are {transform_template.keys()}')
@@ -460,6 +462,7 @@ for row in t:
 id_rafts = {raft.id: raft for raft in rafts}  # for lookup convenience
 
 # apply custom transforms
+user_transformed_rafts = set()
 for transform in user_transforms:
     id = transform['id']
     simple_logger.assert2(id in id_rafts, f'no raft found with id {id}')
@@ -470,7 +473,11 @@ for transform in user_transforms:
             old = getattr(raft, adjust_key)
             new = old + delta
             setattr(raft, adjust_key, new)
-            t[adjust_key][id] = new           
+            t[adjust_key][id] = new
+            user_transformed_rafts.add(raft)
+skip_interference_checks = any(user_transformed_rafts)
+if skip_interference_checks:
+    logger.warning('Turned off automatic raft interference checks, since user has input custom raft position shifts.')
 
 # determine neighbors
 for raft in rafts:
@@ -482,7 +489,8 @@ for raft in rafts:
     raft.neighbors = [r for r in rafts if r.id in neighbor_selection_ids]
 neighbor_counts = {raft.id: len(raft.neighbors) for raft in rafts}
 too_many_neighbors = {id: count for id, count in neighbor_counts.items() if count > 3}
-assert not(too_many_neighbors), f'non-physical number of neighbors detected. RAFT_ID:COUNT = {too_many_neighbors}'
+if not skip_interference_checks:
+    assert not(too_many_neighbors), f'non-physical number of neighbors detected. RAFT_ID:COUNT = {too_many_neighbors}'
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
@@ -539,7 +547,8 @@ def calc_and_print_gaps(rafts, return_type='table'):
 # global table of gaps between rafts
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 gap_minima = [min(global_gaps[k]) for k in gap_mag_keys]
-assert not(any(np.array(gap_minima) <= 0)), f'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
+if not skip_interference_checks:
+    assert not(any(np.array(gap_minima) <= 0)), f'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
 
 def update_gaps(maintable, subtable):
     '''updates one table using new values from some subtable of gaps for a subset of rafts'''
