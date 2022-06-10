@@ -60,8 +60,6 @@ source       = AD.addObject("Part::Feature", source_name)
 source.Shape = Part.read(model_path)
 
 # Read in the raft positions
-#pattern_name = '20220520T1631_desi2_layout_21rafts_1512robots.csv'
-#pattern_path = os.path.join(homepath, pattern_name)
 pattern_path = get_open_name(title='Select data table that specifies the pattern...', initial_dir=model_dir, ext='csv')
 pattern_dir, pattern_name = os.path.split(pattern_path)
 tbl = Table.read(pattern_path)
