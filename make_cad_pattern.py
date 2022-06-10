@@ -13,8 +13,9 @@ import FreeCAD
 import Part
 from FreeCAD import Base
 from astropy.table import Table
+import tkinter.filedialog as filedialog
 
-script_title = "DESI2 Raft Patterning Script"
+script_title = "Raft Patterning Script"
 doc_name = "PatternDoc"
 App.newDocument(doc_name)
 AD = App.ActiveDocument		# just to make things more readable
@@ -22,9 +23,11 @@ starttime = time.time()
 print("\nBEGIN " + script_title + "...") # print the script name
 
 # Paths to source model
-homepath = 'C:/Users/joe/' #"C:/Users/jhsilber/Documents/PDMWorks/"
-source_model = "MM Raft Assembly - simplified - 2022-05-19.STEP"
-model_path = os.path.join(homepath, source_model)
+homepath = os.path.expanduser('~') #'C:/Users/joe/' #"C:/Users/jhsilber/Documents/PDMWorks/"
+#source_model = "MM Raft Assembly - simplified - 2022-05-19.STEP"
+#model_path = os.path.join(homepath, source_model)
+model_path = filedialog.askopenfilename(title='Select CAD model to pattern...', initialdir=homepath, filetypes=[('STEP','*.STEP'), ('step', '*.step')])
+model_dir, model_name = os.path.split(model_path)
 base_name = "EnvelopesArray"
 
 # Read in the source geometry
@@ -33,8 +36,10 @@ source       = AD.addObject("Part::Feature", source_name)
 source.Shape = Part.read(model_path)
 
 # Read in the raft positions
-pattern_name = '20220520T1631_desi2_layout_21rafts_1512robots.csv'
-pattern_path = os.path.join(homepath, pattern_name)
+#pattern_name = '20220520T1631_desi2_layout_21rafts_1512robots.csv'
+#pattern_path = os.path.join(homepath, pattern_name)
+pattern_path = filedialog.askopenfilename(title='Select data table that specifies the pattern...', initialdir=model_dir, filetypes=[('csv', '*.csv')])
+pattern_dir, pattern_name = os.path.split(pattern_path)
 tbl = Table.read(pattern_path)
 
 steptime = time.time()
@@ -44,7 +49,6 @@ lasttime = steptime
 # Choose how many rafts to pattern (can argue a smaller number, i.e. for testing)
 max_patterns = math.inf  # integer or math.inf
 num_to_process = min(max_patterns, len(tbl))
-
 
 rafts = []
 for i in range(num_to_process):
@@ -73,7 +77,8 @@ lasttime = steptime
 
 # Export hole array, using GUI module
 export_name = f'{os.path.splitext(pattern_name)[0]}.step'
-export_path = os.path.join(homepath, export_name)
+#export_path = os.path.join(homepath, export_name)
+export_path = filedialog.asksaveasfilename(title='Save patterned model as...', initialdir=model_dir, initialfile=export_name, defaultextension='.step')
 import ImportGui # import GUI module
 ImportGui.export(rafts, export_path) # requires GUI, does the export of geometry
 App.getDocument("PatternDoc").removeObject("proto") # deletes the proto raft, just to give user warm-fuzzies about what was exported
