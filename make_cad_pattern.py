@@ -1,11 +1,15 @@
 # Joe Silber - 2022 - jhsilber@lbl.gov
 # must be run within the FreeCAD gui, due to usage of ImportGui module for making the STEP file at the end
 
-FREECAD_PATH = 'C:/Program Files/FreeCAD 0.19/bin' # path to your FreeCAD.so or FreeCAD.dll file
-OTHER_PKGS_PATH = 'C:/Users/joe/AppData/Local/Programs/Python/Python38/Lib/site-packages'
+POSSIBLE_FREECAD_PATHs = ['C:/Program Files/FreeCAD 0.19/bin',
+                          'C:/Users/jhsilber/AppData/Local/Programs/FreeCAD 0.19/bin',
+                         ]  # add your path to your computer's FreeCAD.so or FreeCAD.dll file
+POSSIBLE_OTHER_PKGS_PATHS = ['C:/Users/joe/AppData/Local/Programs/Python/Python38/Lib/site-packages',
+                             'C:/Users/jhsilber/AppData/Local/Programs/Python/Python38/Lib/site-packages',
+                             ]  # these are where to find stuff like astropy and tkinter, note as of FreeCAD 0.19, these must all be in Python 3.8
 import sys
-sys.path.append(FREECAD_PATH)
-sys.path.append(OTHER_PKGS_PATH)
+for path in POSSIBLE_FREECAD_PATHs + POSSIBLE_OTHER_PKGS_PATHS:
+    sys.path.append(path)
 import math
 import time
 import os
