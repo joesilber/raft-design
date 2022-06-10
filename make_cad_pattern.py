@@ -1,17 +1,18 @@
 # Joe Silber - 2022 - jhsilber@lbl.gov
-# must be run within the FreeCAD gui, due to usage of ImportGui module for making the STEP file at the end
+# Notes:
+# 1. Must be run within the FreeCAD gui, due to usage of ImportGui module for making the STEP file at the end.
+# 2. You also need FreeCAD to have an astropy module for reading in the csv file. In Windows:
+#      - open a PowerShell terminal
+#      - go to the FreeCAD install directory (like the one in POSSIBLE_FREECAD_PATHS below)
+#      - ./python.exe -m pip install astropy
 
 POSSIBLE_FREECAD_PATHs = ['C:/Program Files/FreeCAD 0.19/bin',
                           'C:/Users/jhsilber/AppData/Local/Programs/FreeCAD 0.19/bin',
                          ]  # add your path to your computer's FreeCAD.so or FreeCAD.dll file
-POSSIBLE_PYTHON38_PATHS = ['C:/Users/joe/AppData/Local/Programs/Python/Python38/',
-                           'C:/Users/jhsilber/AppData/Local/Programs/Python/Python38/',
-                          ]  # these are needed so that FreeCAD 0.19 (which runs as Python 3.8) can find your python 3.8 packages
-OTHER_PKGS = ['Lib/site-packages', 'Lib/tkinter', 'Lib', 'tcl', '.']
+
 import os
-POSSIBLE_OTHER_PKGS_PATHS = [os.path.join(py38path, pkgpath) for py38path in POSSIBLE_PYTHON38_PATHS for pkgpath in OTHER_PKGS]
 import sys
-for path in POSSIBLE_FREECAD_PATHs + POSSIBLE_OTHER_PKGS_PATHS:
+for path in POSSIBLE_FREECAD_PATHs:
     sys.path.append(path)
 import math
 import time
@@ -19,8 +20,25 @@ import FreeCAD
 import Part
 from FreeCAD import Base
 from astropy.table import Table
-import tkinter
-import tkinter.filedialog as filedialog
+
+import PySide
+from PySide import QtGui ,QtCore
+from PySide.QtGui import *
+from PySide.QtCore import *
+
+def get_open_name(title, initial_dir, ext):
+	try:
+	    OpenName = QFileDialog.getOpenFileName(None,QString.fromLocal8Bit(title), initial_dir, f'*.{ext}') # PyQt4
+	except Exception:
+	    OpenName, Filter = PySide.QtGui.QFileDialog.getOpenFileName(None, title, initial_dir, f'*.{ext}') #PySide
+	return OpenName
+
+def get_save_name(title, initial_path, ext):
+	try:
+	    SaveName = QFileDialog.getSaveFileName(None, QString.fromLocal8Bit(title), initial_path, f'*.{ext}') # PyQt4
+	except Exception:
+	    SaveName, Filter = PySide.QtGui.QFileDialog.getSaveFileName(None, title, initial_path, f'*.{ext}') # PySide
+	return SaveName
 
 script_title = "Raft Patterning Script"
 doc_name = "PatternDoc"
@@ -30,10 +48,9 @@ starttime = time.time()
 print("\nBEGIN " + script_title + "...") # print the script name
 
 # Paths to source model
-homepath = os.path.expanduser('~') #'C:/Users/joe/' #"C:/Users/jhsilber/Documents/PDMWorks/"
-#source_model = "MM Raft Assembly - simplified - 2022-05-19.STEP"
-#model_path = os.path.join(homepath, source_model)
-model_path = filedialog.askopenfilename(title='Select CAD model to pattern...', initialdir=homepath, filetypes=[('STEP','*.STEP'), ('step', '*.step')])
+homepath = os.path.expanduser('~')
+model_path = get_open_name(title='Select CAD model to pattern...', initial_dir=homepath, ext='STEP')
+print(model_path)
 model_dir, model_name = os.path.split(model_path)
 base_name = "EnvelopesArray"
 
@@ -45,7 +62,7 @@ source.Shape = Part.read(model_path)
 # Read in the raft positions
 #pattern_name = '20220520T1631_desi2_layout_21rafts_1512robots.csv'
 #pattern_path = os.path.join(homepath, pattern_name)
-pattern_path = filedialog.askopenfilename(title='Select data table that specifies the pattern...', initialdir=model_dir, filetypes=[('csv', '*.csv')])
+pattern_path = get_open_name(title='Select data table that specifies the pattern...', initial_dir=model_dir, ext='csv')
 pattern_dir, pattern_name = os.path.split(pattern_path)
 tbl = Table.read(pattern_path)
 
@@ -58,9 +75,9 @@ max_patterns = math.inf  # integer or math.inf
 num_to_process = min(max_patterns, len(tbl))
 
 rafts = []
+raft_name = os.path.splitext(model_name)[0]
 for i in range(num_to_process):
     # Generate the raft
-    raft_name = f'raft{i}'
     rafts += [AD.addObject("Part::Feature", raft_name)]
     rafts[-1].Shape = source.Shape
 
@@ -84,11 +101,11 @@ lasttime = steptime
 
 # Export hole array, using GUI module
 export_name = f'{os.path.splitext(pattern_name)[0]}.step'
-#export_path = os.path.join(homepath, export_name)
-export_path = filedialog.asksaveasfilename(title='Save patterned model as...', initialdir=model_dir, initialfile=export_name, defaultextension='.step')
+init_export_path = os.path.join(model_dir, export_name)
+export_path = get_save_name(title='Save patterned model as...', initial_path=init_export_path, ext='STEP')
 import ImportGui # import GUI module
 ImportGui.export(rafts, export_path) # requires GUI, does the export of geometry
-App.getDocument("PatternDoc").removeObject("proto") # deletes the proto raft, just to give user warm-fuzzies about what was exported
+App.getDocument(doc_name).removeObject(source_name) # deletes the proto raft, just to give user warm-fuzzies about what was exported
 Gui.SendMsgToActiveView("ViewFit") # requires GUI, gives user warm-fuzzies
 Gui.activeDocument().activeView().viewAxometric() # requires GUI, gives user warm-fuzzies
 steptime = time.time()
