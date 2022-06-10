@@ -4,19 +4,22 @@
 POSSIBLE_FREECAD_PATHs = ['C:/Program Files/FreeCAD 0.19/bin',
                           'C:/Users/jhsilber/AppData/Local/Programs/FreeCAD 0.19/bin',
                          ]  # add your path to your computer's FreeCAD.so or FreeCAD.dll file
-POSSIBLE_OTHER_PKGS_PATHS = ['C:/Users/joe/AppData/Local/Programs/Python/Python38/Lib/site-packages',
-                             'C:/Users/jhsilber/AppData/Local/Programs/Python/Python38/Lib/site-packages',
-                             ]  # these are where to find stuff like astropy and tkinter, note as of FreeCAD 0.19, these must all be in Python 3.8
+POSSIBLE_PYTHON38_PATHS = ['C:/Users/joe/AppData/Local/Programs/Python/Python38/',
+                           'C:/Users/jhsilber/AppData/Local/Programs/Python/Python38/',
+                          ]  # these are needed so that FreeCAD 0.19 (which runs as Python 3.8) can find your python 3.8 packages
+OTHER_PKGS = ['Lib/site-packages', 'Lib/tkinter', 'Lib', 'tcl', '.']
+import os
+POSSIBLE_OTHER_PKGS_PATHS = [os.path.join(py38path, pkgpath) for py38path in POSSIBLE_PYTHON38_PATHS for pkgpath in OTHER_PKGS]
 import sys
 for path in POSSIBLE_FREECAD_PATHs + POSSIBLE_OTHER_PKGS_PATHS:
     sys.path.append(path)
 import math
 import time
-import os
 import FreeCAD
 import Part
 from FreeCAD import Base
 from astropy.table import Table
+import tkinter
 import tkinter.filedialog as filedialog
 
 script_title = "Raft Patterning Script"
