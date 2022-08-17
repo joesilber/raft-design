@@ -70,6 +70,7 @@ parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, sh
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
+parser.add_argument('-v', '--max_vignette_cases', type=int, default=5, help='maximum number of cases to plot, varying the vignette radius')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -663,10 +664,13 @@ for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
 
-# output tables and plots for both the full array and a restricted-to-within-vignette circle array
+# output tables and plots, varying radius of vignette circle within which to restrict array
 overall_max_front_vertex_radius = t["max_front_vertex_radius"].max()
-limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB]  # , overall_max_front_vertex_radius]
+limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB, overall_max_front_vertex_radius]
 limit_radii = sorted(limit_radii, reverse=True)  # start with largest and work inward
+n_cases_to_output = min([len(limit_radii), userargs.max_vignette_cases])
+print(n_cases_to_output)
+limit_radii = limit_radii[:n_cases_to_output]
 for limit_radius in limit_radii:
     logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
     subselection = t['max_front_vertex_radius'] <= limit_radius
