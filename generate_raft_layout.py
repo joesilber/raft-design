@@ -69,7 +69,6 @@ parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm,
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
-parser.add_argument('-i', '--max_iters', type=int, default=0, help='maximum iterations for optimization of layout, argue 0 to skip iteration step')
 parser.add_argument('-v', '--max_vignette_cases', type=int, default=5, help='maximum number of cases to plot, varying the vignette radius')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
@@ -371,11 +370,6 @@ class Raft:
         t = (dx_B * (A1[1] - B1[1]) + dy_B * (B1[0] - A1[0])) / (-delta)
         return (0 <= s <= 1) and (0 <= t <= 1)
 
-# iteration options
-should_iterate = userargs.max_iters > 0
-if not should_iterate:
-    logger.info('Patterning will be performed non-iteratively.')
-
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
 spacing_x = RB + userargs.raft_gap * math.sqrt(3)
@@ -561,96 +555,6 @@ gap_minima = {k: min(global_gaps[k]) for k in gap_mag_keys}
 if not skip_interference_checks:
     assert not(any(np.array(list(gap_minima.values())) <= 0)), 'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
 
-def update_gaps(maintable, subtable):
-    '''updates one table using new values from some subtable of gaps for a subset of rafts'''
-    idxs_to_update = maintable.loc_indices[subtable['id']]
-    for key in gap_mag_keys:
-        maintable[key][idxs_to_update] = subtable[key]
-
-# iteratively nudge the rafts toward each other for more optimal close-packing
-if should_iterate:
-    display_period = math.ceil(len(rafts) / 10)
-    nudge_factor = {'min': 0.6,  # fraction to nudge the smallest of a given polygon's gap errors to neighbors on each iteration
-                    'max': 0.3}  # fraction to nudge the largest etc...
-    nudge_tol = 0.05  # mm, with respect to desired gap error
-    convergence_criterion = 0.05  # mm
-    convergence_criterion_repeats = 3  # number of successive iterations where all convergence params must change by no more than criterion
-    convergence_params = {'min_gap': [], 'max_gap': [], 'max_ctr_radius': [], 'max_vtx_radius': []}
-    primary = 'rear' if is_convex else 'front'
-    secondary = 'front' if is_convex else 'rear'
-    nudge_attempt_order = [f'max_gap_{primary}', f'max_gap_{secondary}', f'min_gap_{primary}', f'min_gap_{secondary}']
-    nudge_attempt_keys = {mag_key: f'{mag_key}_vec' for mag_key in nudge_attempt_order}
-    rafts_radii = [raft.r for raft in rafts]
-    fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
-    moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
-    logger.info('Beginning nudging.')
-    logger.info(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
-    logger.info(f'Nudge factors are {nudge_factor}.')
-    logger.info(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
-    for iter in range(userargs.max_iters):
-        upper_gap_mags, lower_gap_mags, these_raft_radii = [], [], []
-        nudge_order = np.argsort([raft.r for raft in moveable_rafts]).tolist()  # sets the order of nudging to be from the outermost raft inward
-        for count, idx in enumerate(nudge_order):
-            raft = moveable_rafts[idx]
-            gaps = calc_gaps(raft, return_type='dict')  # values in this dict will be wrapped in one-element lists
-            for mag_key, vec_key in nudge_attempt_keys.items():
-                error = gaps[mag_key][0] - userargs.raft_gap
-                if abs(error) <= nudge_tol:
-                    break
-                direction_vector = gaps[vec_key][0]  # results in a 1x3 vector. the zero index here is to pull the vector out of its enclosing list
-                nf_key = 'min' if 'min' in mag_key else 'max'
-                nudge_vec = error * nudge_factor[nf_key] * direction_vector
-                raft.x += nudge_vec[0]
-                raft.y += nudge_vec[1]
-                previous_gaps = gaps
-                gaps = calc_gaps(raft, return_type='dict')
-                gap_mags = [gaps[mag_key][0] for mag_key in gap_mag_keys]
-                should_undo = any(np.array(gap_mags) <= userargs.raft_gap)
-                if should_undo:
-                    raft.x -= nudge_vec[0]
-                    raft.y -= nudge_vec[1]
-                    gaps = previous_gaps
-            upper_gap_mags += [gaps[f'max_gap_{primary}'][0]]
-            lower_gap_mags += [gaps[f'min_gap_{primary}'][0]]
-            these_raft_radii += [raft.r]
-            if count % display_period == 0 or count == len(moveable_rafts) - 1:
-                logger.info(f'Iteration {iter}: Nudges applied through raft {count + 1}'
-                        f' of {len(moveable_rafts)} at radius {raft.r:.3f} mm...')
-        these_gaps = upper_gap_mags + lower_gap_mags
-        convergence_params['max_ctr_radius'] += [max(these_raft_radii)]
-        convergence_params['max_vtx_radius'] += [max([raft.max_front_vertex_radius for raft in rafts])]
-        convergence_params['max_gap'] += [max(these_gaps)]
-        convergence_params['min_gap'] += [min(these_gaps)]
-        delta_select = convergence_criterion_repeats + 1
-        convergence_deltas = {}
-        convergence_deltas_merged = []
-        for key, vals in convergence_params.items():
-            deltas_list = np.diff(vals[-delta_select:]).tolist() if len(vals) > 1 else [math.inf]
-            convergence_deltas[key] = deltas_list
-            convergence_deltas_merged += deltas_list
-        s = f'Nudge iteration {iter} complete.'
-        for key in convergence_params:
-            s += f'\n  {key:>14} = {convergence_params[key][-1]:>7.3f} (change of {convergence_deltas[key][-1]:>6.3f})'
-        logger.info(s)
-        num_deltas_per_param = len(deltas_list)
-        num_iters_performed = iter + 1
-        if all(np.abs(convergence_deltas_merged) <= convergence_criterion) and num_deltas_per_param >= convergence_criterion_repeats:
-            logger.info(f'Last {num_deltas_per_param} convergence parameters all changed by <= criterion {convergence_criterion}'
-                    f' for all parameters {tuple(convergence_params)}.')
-            logger.info(f'Nudging complete after {num_iters_performed} iterations.')
-            break
-        if num_iters_performed >= userargs.max_iters:
-            logger.info(f'Nudging halted without passing convergence criteria after max ({num_iters_performed}) iterations.')
-            break
-    iter_text = f'Outward-in nudging ({num_iters_performed} iterations) with initial front gap'
-else:
-    logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
-    num_iters_performed = 0
-    iter_text = 'Uniform spacing with nominal front gap'
-iter_text += f' = {userargs.raft_gap:.2f} mm'
-
-global_gaps = calc_and_print_gaps(rafts, return_type='table')
-
 # collate stats into table
 global_gaps.sort('id')
 t.sort('id')
@@ -706,15 +610,14 @@ for limit_radius in limit_radii:
     logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
     # file names and plot titles
-    basename = f'{timestamp}_{focsurf_name}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_iters{num_iters_performed}_nrafts{n_rafts}_nrobots{n_robots}'
+    basename = f'{timestamp}_{focsurf_name}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
     if limit_radii.index(limit_radius) == 0:
         basename0 = basename
     typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm' \
                f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
                f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
                f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
-               f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}' \
-               f'\nPatterningMethod: {iter_text}'
+               f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
     filename = basename + '.csv'
 
     # save table
@@ -811,28 +714,6 @@ for limit_radius in limit_radii:
     filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
     logger.info(f'Saved 2D plot to {filepath}')
-
-# convergence plots
-if should_iterate:
-    plt.figure(figsize=(10, 6), dpi=200, tight_layout=True)
-    i = 0
-    nparams = len(convergence_params)
-    for key, data in convergence_params.items():
-        i += 1
-        plt.subplot(2, nparams, i)
-        plt.plot(data, label=key)
-        plt.legend(loc='upper right', fontsize=10)
-        plt.grid(True)
-        plt.subplot(2, nparams, i + nparams)
-        deltas = [0] + np.diff(data).tolist()
-        plt.plot(deltas, label=f'delta {key}')
-        plt.legend(loc='upper right')
-        plt.grid(True)
-    plt.suptitle(f'Raft layout convergence parameters\nRun: {timestamp}, Iterations: {num_iters_performed}, all units mm')
-    filename = f'{basename0}_convergence.png'
-    filepath = os.path.join(logdir, filename)
-    plt.savefig(filepath)
-    logger.info(f'Saved convergence plot to {filepath}')
 
 plt.close('all')
 logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')
