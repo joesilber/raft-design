@@ -250,10 +250,11 @@ class Raft:
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
         return float(self.spin0 - self.precession)
 
-    @property
-    def front_poly(self):
-        '''polygon of raft profile at front (i.e. at focal surface)'''
-        poly = raft_profile + [0, 0, avg_focus_offset]
+    def front_poly(self, instr=False):
+        '''polygon of raft profile at front (i.e. at focal surface)
+        set arg instr True to use the smaller instrumented area profile'''
+        profile = instr_profile if instr else raft_profile
+        poly = profile + [0, 0, avg_focus_offset]
         return self._place_poly(poly)
 
     @property
@@ -264,35 +265,42 @@ class Raft:
 
     @property
     def poly3d(self):
-        '''intended for 3D plotting, includes front and rear closed polygons'''
-        front = self.front_poly.tolist()
+        '''intended for 3D plotting, includes front and rear outer closed polygons'''
+        front = self.front_poly().tolist()
         rear = self.rear_poly.tolist()
         poly3d = front + [front[0]]
         for i in range(len(rear) - 1):
             poly3d += [rear[i], rear[i+1], front[i+1]]
         poly3d += [rear[i+1], rear[0]]
         return poly3d
-
+    
     @property
-    def max_front_vertex_radius(self):
-        '''maximum distance from the z-axis of any point in the 3d raft polygon'''
-        return max(self._front_vertex_radii)
+    def poly3d_instr(self):
+        '''intended for 3D plotting, includes front instrumented area closed polygon'''
+        poly3d = self.front_poly(instr=True).tolist()
+        poly3d += [poly3d[0]]
+        return poly3d
 
-    @property
-    def min_front_vertex_radius(self):
-        '''minimum distance from the z-axis of any point in the 3d raft polygon'''
-        return min(self._front_vertex_radii)
+    def max_front_vertex_radius(self, instr=False):
+        '''maximum distance from the z-axis of any point in the 3d raft polygon
+        set arg instr True to use the smaller instrumented area profile'''
+        return max(self._front_vertex_radii(instr))
 
-    @property
-    def _front_vertex_radii(self):
-        '''return distances of all points in the 3d raft polygon from the z-axis'''
-        all_points = np.transpose(self.front_poly)
+    def min_front_vertex_radius(self, instr=False):
+        '''minimum distance from the z-axis of any point in the 3d raft polygon
+        set arg instr True to use the smaller instrumented area profile'''
+        return min(self._front_vertex_radii(instr))
+
+    def _front_vertex_radii(self, instr=False):
+        '''return distances of all points in the 3d raft polygon from the z-axis
+        set arg instr True to use the smaller instrumented area profile'''
+        all_points = np.transpose(self.front_poly(instr))
         return np.hypot(all_points[0], all_points[1])
 
     def front_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
         raft's front polygon toward corresponding closest point on "other" raft.'''
-        return Raft.poly_gap(other_raft.front_poly, self.front_poly)
+        return Raft.poly_gap(other_raft.front_poly(), self.front_poly())
 
     def rear_gap(self, other_raft):
         '''Returns min distance and perpendicular unit vector from closest segment on this
@@ -452,7 +460,8 @@ t = Table(grid)
 t['radius'] = np.hypot(t['x'], t['y'])
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
 other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
-              'max_front_vertex_radius': float, 'min_front_vertex_radius': float}
+              'max_front_vertex_radius': float, 'min_front_vertex_radius': float,
+              'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float, }
 for col, typecast in other_cols.items():
     t[col] = [typecast(0)]*len(t)
 
@@ -581,8 +590,10 @@ for raft in rafts:
     row['nutation'] = raft.nutation
     row['spin'] = raft.spin
     row['id'] = raft.id
-    row['max_front_vertex_radius'] = raft.max_front_vertex_radius
-    row['min_front_vertex_radius'] = raft.min_front_vertex_radius
+    row['max_front_vertex_radius'] = raft.max_front_vertex_radius(instr=False)
+    row['min_front_vertex_radius'] = raft.min_front_vertex_radius(instr=False)
+    row['max_instr_vertex_radius'] = raft.max_front_vertex_radius(instr=True)
+    row['min_instr_vertex_radius'] = raft.min_front_vertex_radius(instr=True)
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
@@ -591,7 +602,7 @@ t['neighbor_ids'] = neighbor_ids
 # output tables and plots
 limit_radius = vigR if userargs.limit_radius <= 0 else userargs.limit_radius
 logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
-subselection = t['max_front_vertex_radius'] <= limit_radius
+subselection = t['max_instr_vertex_radius'] <= limit_radius
 t2 = t[subselection]
 rafts2 = [raft for raft in rafts if raft.id in t2['id']]
 n_rafts = len(rafts2)
@@ -628,9 +639,12 @@ logger.info(f'Saved table to {os.path.abspath(filename)}')
 
 # print out more statistics
 print_stats(t2, gap_mag_keys + ['radius'])
-logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
-            f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
-poly_exceeds_vigR = t2['id', 'max_front_vertex_radius'][t2['max_front_vertex_radius'] > vigR]
+for key, desc in {'front': 'raft outline', 'instr': 'instrumented area'}.items():
+    maxval = t2[f'max_{key}_vertex_radius'].max()
+    raftid = t2[t2[f'max_{key}_vertex_radius'].argmax()]['id']
+    logger.info(f'Maximum radius of any {key} vertex (i.e. at the focal surface) in any'
+                f' {desc} polygon is {maxval:.3f} mm on raft {raftid}.')
+poly_exceeds_vigR = t2['id', 'max_instr_vertex_radius'][t2['max_instr_vertex_radius'] > vigR]
 poly_exceeds_vigR_tbl_str = '\n'.join(poly_exceeds_vigR.pformat_all())
 poly_exceeds_vigR_str = f'With limit radius {limit_radius:.3f} mm, '
 poly_exceeds_vigR_str += f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some' if poly_exceeds_vigR else 'no rafts have any'
@@ -698,9 +712,18 @@ for p, name in enumerate(['front', 'rear']):
     for i, raft in enumerate(rafts2):
         if i >= max_rafts_to_plot:
             break
-        f = np.transpose(eval(f'raft.{name}_poly'))
+        poly_cmd = f'raft.{name}_poly'
+        cmd_suffix = '(instr=False)' if name == 'front' else ''
+        f = np.transpose(eval(poly_cmd + cmd_suffix))
         f0 = np.append(f[0], f[0][0])
         f1 = np.append(f[1], f[1][0])
+        if name == 'front':
+            cmd_suffix = '(instr=True)'
+            fi = np.transpose(eval(poly_cmd + cmd_suffix))
+            f0 = np.append(f0, fi[0])
+            f1 = np.append(f1, fi[1])
+            f0 = np.append(f0, fi[0][0])
+            f1 = np.append(f1, fi[1][0])
         plt.plot(f0, f1, '-', linewidth=0.7)
         plt.text(np.mean(f[0]), np.mean(f[1]), f'{raft.id:03}', family='monospace', fontsize=6,
                 verticalalignment='center', horizontalalignment='center')
