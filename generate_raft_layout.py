@@ -165,11 +165,6 @@ raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h
 raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
-
-# "anticonvex" radius conversion
-# For pretending raft is flipped across the focal surface. Is used to make convex
-# patterning algorithmically similar to concave.
-anticonvex = lambda r: r * (1 + RL/sphR)
     
 # single raft instrumented area
 instr_base = RB - userargs.instr_wall * 2 * 3**0.5
@@ -421,14 +416,12 @@ for j in rng:
     natural_grid['x'] += [u + spacing_x/2 for u in x]
     natural_grid['y'] += [v + spacing_y/3 for v in y]
     natural_grid['spin0'] += [180.]*len(x)
-
+    
 # flatten grid from its natural, implicit, curved space of focal surface
 # to cartesian (where focal surface shape as function of radius applies)
 q = np.arctan2(natural_grid['y'], natural_grid['x'])
 s = np.hypot(natural_grid['x'], natural_grid['y'])
 r = S2R(s)
-if is_convex:
-    r = anticonvex(r)
 grid = {'x': r * np.cos(q),
         'y': r * np.sin(q),
         'spin0': natural_grid['spin0'],
