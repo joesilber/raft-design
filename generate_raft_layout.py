@@ -105,7 +105,7 @@ elif 'file' in focsurf:
     else:
         R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
         CRD2R_undefined = True
-        logger.warning(f'no chief ray deviation defined, letting CRD(R)=0')
+        logger.warning('no chief ray deviation defined, letting CRD(R)=0')
 else:
     assert False, 'unrecognized geometry input data'
 vigR = focsurf['vigR']  # should be a scalar
@@ -298,7 +298,6 @@ class Raft:
         segment_pts = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
         segment_pts += [(poly2[-1], poly2[0])]  # close the polygon with last segment
         min_dist = math.inf
-        min_vec = None
         for seg in segment_pts:
             s0 = np.array(seg[0])
             s1 = np.array(seg[1])
@@ -360,7 +359,7 @@ class Raft:
 # iteration options
 should_iterate = userargs.max_iters > 0
 if not should_iterate:
-    logger.info(f'Patterning will be performed non-iteratively.')
+    logger.info('Patterning will be performed non-iteratively.')
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
@@ -370,12 +369,16 @@ if is_convex:
     # raft's particular radial position, rather than uniformly assuming worst-case
     # chief ray deviation. Should definitely address this before producing any
     # final layout for a *convex* focal surface (such as DESI's Echo22 corrector).
-    coarse_r = np.arange(0, vigR, RB)
-    coarse_crd = R2CRD(coarse_r)
-    delta_crd_rad = np.radians(np.diff(coarse_crd))
-    max_delta_crd_rad = max(delta_crd_rad)
-    delta_gap_rad = (userargs.raft_gap + RB) / (sphR - RL)
-    front_gap = (max_delta_crd_rad + delta_gap_rad) * sphR - RB
+    front_gaps = [userargs.raft_gap]
+    max_front_gap_iter = 10
+    for i in range(max_front_gap_iter):
+        approx_raft_to_raft_r = np.arange(0, vigR, RB + front_gaps[-1])
+        approx_raft_to_raft_nut = R2NUT(approx_raft_to_raft_r)
+        absmax_delta_nut = np.max(np.abs(np.diff(approx_raft_to_raft_nut)))  # i.e. approx max angle from raft to raft
+        front_gaps += [userargs.raft_gap * (1 + RL / (sphR - RL - RB/np.radians(absmax_delta_nut)))]
+    front_gaps_text = '\n'.join([f'  iter {k:2.0f}: {fg:.3f}' for k, fg in enumerate(front_gaps)])
+    logger.info(f'For this convex focal surface, over\n{max_front_gap_iter} iterations, nominal front gap (mm) between rafts is:\n{front_gaps_text}')
+    front_gap = front_gaps[-1]
 else:
     front_gap = userargs.raft_gap
 gap_expansion_factor = 2.0 if should_iterate else 1.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
@@ -547,9 +550,9 @@ def calc_and_print_gaps(rafts, return_type='table'):
 
 # global table of gaps between rafts
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
-gap_minima = [min(global_gaps[k]) for k in gap_mag_keys]
+gap_minima = {k: min(global_gaps[k]) for k in gap_mag_keys}
 if not skip_interference_checks:
-    assert not(any(np.array(gap_minima) <= 0)), f'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
+    assert not(any(np.array(list(gap_minima.values())) <= 0)), 'Initial pattern already has interference between rafts. Check focal surface input geometry and/or consider increasing raft_gap value.'
 
 def update_gaps(maintable, subtable):
     '''updates one table using new values from some subtable of gaps for a subset of rafts'''
@@ -573,7 +576,7 @@ if should_iterate:
     rafts_radii = [raft.r for raft in rafts]
     fixed_raft_ids = [rafts[np.argmin(rafts_radii)].id]  # don't nudge these
     moveable_rafts = [raft for raft in rafts if raft.id not in fixed_raft_ids]
-    logger.info(f'Beginning nudging.')
+    logger.info('Beginning nudging.')
     logger.info(f'Tolerance with respect to user-defined {userargs.raft_gap} mm target gap is {nudge_tol}.')
     logger.info(f'Nudge factors are {nudge_factor}.')
     logger.info(f'Convergence criterion for {list(convergence_params)} is {convergence_criterion}.')
@@ -636,7 +639,7 @@ if should_iterate:
 else:
     logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
-    iter_text = f'Uniform spacing with nominal front gap'
+    iter_text = 'Uniform spacing with nominal front gap'
 iter_text += f' = {initial_front_gap:.2f} mm'
 
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
@@ -824,4 +827,5 @@ if should_iterate:
     plt.savefig(filepath)
     logger.info(f'Saved convergence plot to {filepath}')
 
+plt.close('all')
 logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')
