@@ -61,6 +61,7 @@ focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
+parser.add_argument('-r', '--limit_radius', type=float, default=0, help='maximum radius beyond which no part of raft instrumented area shall protrude, argue 0 to use the default for the given focal surface')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
@@ -69,7 +70,6 @@ parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm,
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
-parser.add_argument('-v', '--max_vignette_cases', type=int, default=5, help='maximum number of cases to plot, varying the vignette radius')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -578,142 +578,134 @@ for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
 t['neighbor_ids'] = neighbor_ids
 
-# output tables and plots, varying radius of vignette circle within which to restrict array
-overall_max_front_vertex_radius = t["max_front_vertex_radius"].max()
-limit_radii = [vigR, vigR + h2, vigR + h3, vigR + RB, overall_max_front_vertex_radius]
-limit_radii = sorted(limit_radii, reverse=True)  # start with largest and work inward
-n_cases_to_output = min([len(limit_radii), userargs.max_vignette_cases])
-print(n_cases_to_output)
-limit_radii = limit_radii[:n_cases_to_output]
-for limit_radius in limit_radii:
-    logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
-    subselection = t['max_front_vertex_radius'] <= limit_radius
-    t2 = t[subselection]
-    rafts2 = [raft for raft in rafts if raft.id in t2['id']]
-    n_rafts = len(rafts2)
-    n_robots = n_rafts*72
-    logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
-    t2_str = '\n' + '\n'.join(t2.pformat_all())
-    logger.info(t2_str)
+# output tables and plots
+limit_radius = vigR if userargs.limit_radius <= 0 else userargs.limit_radius
+logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
+subselection = t['max_front_vertex_radius'] <= limit_radius
+t2 = t[subselection]
+rafts2 = [raft for raft in rafts if raft.id in t2['id']]
+n_rafts = len(rafts2)
+n_robots = n_rafts*72
+logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
+t2_str = '\n' + '\n'.join(t2.pformat_all())
+logger.info(t2_str)
 
-    # instrumented area calcs
-    avg_spacing_x = RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
-    avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
-    logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
-    instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
-    logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
-    total_instr_area = instr_area_per_raft * n_rafts
-    logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
-    surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
-    logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
-    total_instr_area_ratio = total_instr_area / surface_area_within_vigR
-    logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
+# instrumented area calcs
+avg_spacing_x = RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
+avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
+logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
+instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
+logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
+total_instr_area = instr_area_per_raft * n_rafts
+logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
+surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
+logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
+total_instr_area_ratio = total_instr_area / surface_area_within_vigR
+logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
-    # file names and plot titles
-    basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
-    if limit_radii.index(limit_radius) == 0:
-        basename0 = basename
-    typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm, RaftLength: {RL:.1f} mm' \
-               f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
-               f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
-               f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
-               f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
-    filename = basename + '.csv'
+# file names and plot titles
+basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm, RaftLength: {RL:.1f} mm' \
+           f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
+           f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
+           f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
+           f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
+filename = basename + '.csv'
 
-    # save table
-    t2.write(filename, overwrite=True)
-    logger.info(f'Saved table to {os.path.abspath(filename)}')
-    
-    # print out more statistics
-    print_stats(t2, gap_mag_keys + ['radius'])
-    logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
-                f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
-    poly_exceeds_vigR = t2['id', 'max_front_vertex_radius'][t2['max_front_vertex_radius'] > vigR]
-    poly_exceeds_vigR_tbl_str = '\n'.join(poly_exceeds_vigR.pformat_all())
-    poly_exceeds_vigR_str = f'With limit radius {limit_radius:.3f} mm, '
-    poly_exceeds_vigR_str += f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some' if poly_exceeds_vigR else 'no rafts have any'
-    poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
-    poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else '.'
-    logger.info(poly_exceeds_vigR_str)
+# save table
+t2.write(filename, overwrite=True)
+logger.info(f'Saved table to {os.path.abspath(filename)}')
 
-    # plot rafts
-    max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
-    fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
-    ax = fig.add_subplot(projection='3d', proj_type='ortho')
-    outlines = []
+# print out more statistics
+print_stats(t2, gap_mag_keys + ['radius'])
+logger.info(f'Maximum radius of any front vertex (i.e. at the focal surface) in any raft polygon is'
+            f' {t2["max_front_vertex_radius"].max():.3f} mm on raft {t2[t2["max_front_vertex_radius"].argmax()]["id"]}.')
+poly_exceeds_vigR = t2['id', 'max_front_vertex_radius'][t2['max_front_vertex_radius'] > vigR]
+poly_exceeds_vigR_tbl_str = '\n'.join(poly_exceeds_vigR.pformat_all())
+poly_exceeds_vigR_str = f'With limit radius {limit_radius:.3f} mm, '
+poly_exceeds_vigR_str += f'{len(poly_exceeds_vigR)} of {n_rafts} rafts have some' if poly_exceeds_vigR else 'no rafts have any'
+poly_exceeds_vigR_str += f' vertex at the focal surface outside the nominal vignette radius of {vigR:.3f} mm'
+poly_exceeds_vigR_str += f':\n{poly_exceeds_vigR_tbl_str}' if poly_exceeds_vigR else '.'
+logger.info(poly_exceeds_vigR_str)
+
+# plot rafts
+max_rafts_to_plot = math.inf  # limit plot complexity, sometimes useful in debugging
+fig = plt.figure(figsize=plt.figaspect(1)*2, dpi=200, tight_layout=True)
+ax = fig.add_subplot(projection='3d', proj_type='ortho')
+outlines = []
+for i, raft in enumerate(rafts2):
+    if i >= max_rafts_to_plot:
+        break
+    f = np.transpose(raft.poly3d)
+    ax.plot(f[0], f[1], f[2], '-', linewidth=0.7)
+
+# plot envelope
+ax.plot(envelope_x, envelope_y, envelope_z, 'k--', linewidth=1.0)
+
+# from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
+def set_axes_equal(ax):
+    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+    Input
+    ax: a matplotlib axis, e.g., as output from plt.gca().
+    '''
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
+set_axes_equal(ax)
+ax.set_xlabel('x (mm)')
+ax.set_ylabel('y (mm)')
+ax.set_zlabel('z (mm)')
+ax.set_box_aspect([1, 1, 1])
+ax.set_proj_type('ortho')
+
+plt.title(typtitle)
+views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
+for i, view in enumerate(views):
+    ax.azim = view[0]
+    ax.elev = view[1]
+    filename = f'{basename}_view{i}.png'
+    filepath = os.path.join(logdir, filename)
+    plt.savefig(filepath)
+    logger.info(f'Saved 3D plot to {filepath}')
+
+# 2d raft plots
+plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
+for p, name in enumerate(['front', 'rear']):
+    plt.subplot(1, 2, p + 1)
     for i, raft in enumerate(rafts2):
         if i >= max_rafts_to_plot:
             break
-        f = np.transpose(raft.poly3d)
-        ax.plot(f[0], f[1], f[2], '-', linewidth=0.7)
-
-    # plot envelope
-    ax.plot(envelope_x, envelope_y, envelope_z, 'k--', linewidth=1.0)
-
-    # from: https://newbedev.com/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to-x-and-y
-    def set_axes_equal(ax):
-        '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
-        cubes as cubes, etc..  This is one possible solution to Matplotlib's
-        ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-        Input
-        ax: a matplotlib axis, e.g., as output from plt.gca().
-        '''
-        x_limits = ax.get_xlim3d()
-        y_limits = ax.get_ylim3d()
-        z_limits = ax.get_zlim3d()
-        x_range = abs(x_limits[1] - x_limits[0])
-        x_middle = np.mean(x_limits)
-        y_range = abs(y_limits[1] - y_limits[0])
-        y_middle = np.mean(y_limits)
-        z_range = abs(z_limits[1] - z_limits[0])
-        z_middle = np.mean(z_limits)
-        plot_radius = 0.5*max([x_range, y_range, z_range])
-        ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
-        ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
-        ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
-
-    set_axes_equal(ax)
-    ax.set_xlabel('x (mm)')
-    ax.set_ylabel('y (mm)')
-    ax.set_zlabel('z (mm)')
-    ax.set_box_aspect([1, 1, 1])
-    ax.set_proj_type('ortho')
-
-    plt.title(typtitle)
-    views = [(-114, 23), (-90, 90), (0, 0), (-90, 0), (-80, 52), (-61, 14)]
-    for i, view in enumerate(views):
-        ax.azim = view[0]
-        ax.elev = view[1]
-        filename = f'{basename}_view{i}.png'
-        filepath = os.path.join(logdir, filename)
-        plt.savefig(filepath)
-        logger.info(f'Saved 3D plot to {filepath}')
-
-    # 2d raft plots
-    plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
-    for p, name in enumerate(['front', 'rear']):
-        plt.subplot(1, 2, p + 1)
-        for i, raft in enumerate(rafts2):
-            if i >= max_rafts_to_plot:
-                break
-            f = np.transpose(eval(f'raft.{name}_poly'))
-            f0 = np.append(f[0], f[0][0])
-            f1 = np.append(f[1], f[1][0])
-            plt.plot(f0, f1, '-', linewidth=0.7)
-            plt.text(np.mean(f[0]), np.mean(f[1]), f'{raft.id:03}', family='monospace', fontsize=6,
-                    verticalalignment='center', horizontalalignment='center')
-        plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0,
-                 label=f'vignette @ R{vigR:.1f}')
-        plt.legend(loc='lower right')
-        plt.xlabel('x (mm)')
-        plt.ylabel('y (mm)')
-        plt.axis('equal')
-        plt.title(f'raft {name} faces')
-    plt.suptitle(typtitle)
-    filename = f'{basename}_2D.png'
-    filepath = os.path.join(logdir, filename)
-    plt.savefig(filepath)
-    logger.info(f'Saved 2D plot to {filepath}')
+        f = np.transpose(eval(f'raft.{name}_poly'))
+        f0 = np.append(f[0], f[0][0])
+        f1 = np.append(f[1], f[1][0])
+        plt.plot(f0, f1, '-', linewidth=0.7)
+        plt.text(np.mean(f[0]), np.mean(f[1]), f'{raft.id:03}', family='monospace', fontsize=6,
+                verticalalignment='center', horizontalalignment='center')
+    plt.plot(envelope_x, envelope_y, 'k--', linewidth=1.0,
+             label=f'vignette @ R{vigR:.1f}')
+    plt.legend(loc='lower right')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('equal')
+    plt.title(f'raft {name} faces')
+plt.suptitle(typtitle)
+filename = f'{basename}_2D.png'
+filepath = os.path.join(logdir, filename)
+plt.savefig(filepath)
+logger.info(f'Saved 2D plot to {filepath}')
 
 plt.close('all')
 logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')
