@@ -192,6 +192,13 @@ instr_triangle_area = RBi**2 * 3**.5 / 4
 instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
 logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
 
+# raft instrumented outline
+instr_profile_x = [RBi/2-CBi,  RBi/2-CBi/2,    CBi/2,    -CBi/2,  -RBi/2+CBi/2,   -RBi/2+CBi]
+instr_profile_y = [     -h2i,      RCi-h2i,  h3i-RCi,   h3i-RCi,       RCi-h2i,         -h2i]
+instr_profile_z = [0.0]*len(instr_profile_x)
+instr_profile = np.transpose([instr_profile_x, instr_profile_y, instr_profile_z])
+logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.tolist()}')
+
 # offset to average out the defocus of all the robots on a raft
 above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
