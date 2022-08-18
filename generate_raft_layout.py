@@ -610,10 +610,10 @@ for limit_radius in limit_radii:
     logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
     # file names and plot titles
-    basename = f'{timestamp}_{focsurf_name}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+    basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
     if limit_radii.index(limit_radius) == 0:
         basename0 = basename
-    typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm' \
+    typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm, RaftLength: {RL:.1f} mm' \
                f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
                f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
                f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
