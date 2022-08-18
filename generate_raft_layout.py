@@ -160,7 +160,7 @@ for key, val in {'length (RL)': RL, 'triangle base (RB)': RB, 'triangle height (
                  'corner chamfer height (RC)': RC, 'corner chamfer base (CB)': CB}.items():
     logger.info(f'Raft geometry {key.upper()} = {val:.3f}')
 raft_profile_x = [RB/2-CB,  RB/2-CB/2,    CB/2,    -CB/2,  -RB/2+CB/2,   -RB/2+CB]
-raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h2]
+raft_profile_y = [    -h2,      RC-h2,   h3-RC,    h3-RC,       RC-h2,        -h2]
 raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
