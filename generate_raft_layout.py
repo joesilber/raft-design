@@ -23,7 +23,7 @@ import simple_logger
 
 timestamp_fmt = '%Y%m%dT%H%M'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
-interp1d = lambda x, y: interpolate.interp1d(x, y, kind='cubic', bounds_error=False, fill_value='extrapolate')
+interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=False, fill_value='extrapolate')
 
 logdir = os.getcwd()
 logname = f'{timestamp}_generate_raft_layout.log'
@@ -127,7 +127,7 @@ norm = np.degrees(np.arctan(dzdr))
 R2NORM = interp1d(r[:-1], norm)
 NORM2R = interp1d(norm, r[:-1])
 crd = R2CRD(r)
-nut = - (norm + crd[:-1])
+nut = -(norm + crd[:-1])
 if not CRD2R_undefined:
     CRD2R = interp1d(crd, r)
 R2NUT = interp1d(r[:-1], nut)
@@ -165,7 +165,22 @@ raft_profile_y = [    -h2,      CB-h2,   h3-CB,    h3-CB,       CB-h2,        -h
 raft_profile_z = [0.0]*len(raft_profile_x)
 raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
 logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
-    
+
+# special function used for projecting from a coordinate like "S", but at rear
+# of raft, to the corresponding point at the focal surface (in convex case)
+r2 = r - RL * np.sin(np.radians(R2NUT(r)))
+z2 = R2Z(r) - RL * np.cos(np.radians(R2NUT(r)))
+dr2 = np.diff(r2)
+dz2 = np.diff(z2)
+dzdr2 = dz2 / dr2
+ds2 = (1 + dzdr2**2)**0.5 * dr2
+s2 = np.cumsum(ds2)
+s2 = np.insert(s2, 0, 0.)
+rearS_to_frontR = interp1d(s2, r)
+rearR_to_frontR = interp1d(r2, r)
+frontR_to_rearS = interp1d(r, s2)
+frontR_to_rearR = interp1d(r, r2)
+
 # single raft instrumented area
 instr_base = RB - userargs.instr_wall * 2 * 3**0.5
 instr_chamfer_adjusted_for_wall = userargs.instr_chamfer - 2 * userargs.instr_wall
@@ -363,30 +378,7 @@ if not should_iterate:
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
-if is_convex:
-    # JHS 2022-05-31: This estimation for front gap is simple and conservative.
-    # A more efficient algorithm would use the appropriate delta_crd for each
-    # raft's particular radial position, rather than uniformly assuming worst-case
-    # chief ray deviation. Should definitely address this before producing any
-    # final layout for a *convex* focal surface (such as DESI's Echo22 corrector).
-    front_gaps = [userargs.raft_gap]
-    max_front_gap_iter = 10
-    for i in range(max_front_gap_iter):
-        approx_raft_to_raft_r = np.arange(0, vigR, RB + front_gaps[-1])
-        approx_raft_to_raft_nut = R2NUT(approx_raft_to_raft_r)
-        absmax_delta_nut = np.max(np.abs(np.diff(approx_raft_to_raft_nut)))  # i.e. approx max angle from raft to raft
-        front_gaps += [userargs.raft_gap * (1 + RL / (sphR - RL - RB/np.radians(absmax_delta_nut)))]
-    front_gaps_text = '\n'.join([f'  iter {k:2.0f}: {fg:.3f}' for k, fg in enumerate(front_gaps)])
-    logger.info(f'For this convex focal surface, over\n{max_front_gap_iter} iterations, nominal front gap (mm) between rafts is:\n{front_gaps_text}')
-    front_gap = front_gaps[-1]
-else:
-    front_gap = userargs.raft_gap
-gap_expansion_factor = 2.0 if should_iterate else 1.0  # over-expands the nominal pattern, with goal of assuring no initial overlaps (iterative nudging will contract this later)
-initial_front_gap = front_gap * gap_expansion_factor
-logger.info(f'Unexpanded intial front gap: {front_gap:.3f} mm')
-logger.info(f'Initial gap expansion factor: {gap_expansion_factor}')
-logger.info(f'Expanded initial front gap: {initial_front_gap:.3f} mm')
-spacing_x = RB + initial_front_gap * math.sqrt(3)
+spacing_x = RB + userargs.raft_gap * math.sqrt(3)
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
@@ -421,7 +413,10 @@ for j in rng:
 # to cartesian (where focal surface shape as function of radius applies)
 q = np.arctan2(natural_grid['y'], natural_grid['x'])
 s = np.hypot(natural_grid['x'], natural_grid['y'])
-r = S2R(s)
+if is_convex:  # natural grid lies on the rear surface of rafts array
+    r = rearS_to_frontR(s)
+else: # natural grid lies on the front surface of rafts array
+    r = S2R(s)
 grid = {'x': r * np.cos(q),
         'y': r * np.sin(q),
         'spin0': natural_grid['spin0'],
@@ -484,9 +479,21 @@ if skip_interference_checks:
     logger.warning('Turned off automatic raft interference checks, since user has input custom raft position shifts.')
 
 # determine neighbors
+neighbor_selection_radius = spacing_x / math.sqrt(3) * 1.1
 for raft in rafts:
-    dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
-    neighbor_selection_radius = spacing_x / math.sqrt(3) * 1.1
+    if is_convex:
+        r_others = np.array([other.r for other in rafts])  # "others" here will actually include self, but that's ok, will filter out later
+        q_others = np.radians([other.precession for other in rafts])
+        q_this = np.radians(raft.precession)
+        r2_others = frontR_to_rearR(r_others)
+        x2_others = r2_others * np.cos(q_others)
+        y2_others = r2_others * np.sin(q_others)
+        r2_this = frontR_to_rearR(raft.r)
+        x2_this = r2_this * np.cos(q_this)
+        y2_this = r2_this * np.sin(q_this)
+        dist = np.hypot(x2_others - x2_this, y2_others - y2_this)
+    else:
+        dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
     neighbor_selection = dist < neighbor_selection_radius
     neighbor_selection &= raft.id != t['id']  # skip self
     neighbor_selection_ids = np.flatnonzero(neighbor_selection)
@@ -640,7 +647,7 @@ else:
     logger.info(f'Skipped iterative nudging of pattern (user argued max_iters = {userargs.max_iters}).')
     num_iters_performed = 0
     iter_text = 'Uniform spacing with nominal front gap'
-iter_text += f' = {initial_front_gap:.2f} mm'
+iter_text += f' = {userargs.raft_gap:.2f} mm'
 
 global_gaps = calc_and_print_gaps(rafts, return_type='table')
 
