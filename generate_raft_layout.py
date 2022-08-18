@@ -21,7 +21,7 @@ import os
 import argparse
 import simple_logger
 
-timestamp_fmt = '%Y%m%dT%H%M'
+timestamp_fmt = '%Y%m%dT%H%M%S'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
 interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=False, fill_value='extrapolate')
 
@@ -606,7 +606,7 @@ subselection = t['max_instr_vertex_radius'] <= limit_radius
 t2 = t[subselection]
 rafts2 = [raft for raft in rafts if raft.id in t2['id']]
 n_rafts = len(rafts2)
-n_robots = n_rafts*72
+n_robots = n_rafts*75
 logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
 t2_str = '\n' + '\n'.join(t2.pformat_all())
 logger.info(t2_str)
@@ -625,10 +625,13 @@ total_instr_area_ratio = total_instr_area / surface_area_within_vigR
 logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
 # file names and plot titles
-basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_limitR{limit_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
-typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", LimitRadius: {limit_radius:.1f} mm, RaftLength: {RL:.1f} mm' \
+overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
+basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {RL:.1f} mm' \
            f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
            f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
+           f'\nMaxMechanicalVertexRadius: {t2["max_front_vertex_radius"].max():.2f} mm'\
+           f', MaxInstrumentedVertexRadius: {overall_max_instr_vertex_radius:.2f} mm' \
            f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
            f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
 filename = basename + '.csv'
