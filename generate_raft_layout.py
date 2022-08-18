@@ -181,11 +181,14 @@ frontR_to_rearS = interp1d(r, s2)
 frontR_to_rearR = interp1d(r, r2)
 
 # single raft instrumented area
-instr_base = RB - userargs.instr_wall * 2 * 3**0.5
-instr_chamfer_adjusted_for_wall = userargs.instr_chamfer - 2 * userargs.instr_wall
-instr_chamfer_base = instr_chamfer_adjusted_for_wall * 2 / 3**0.5
-instr_chamfer_area = instr_chamfer_base**2 * 3**.5 / 4
-instr_triangle_area = instr_base**2 * 3**.5 / 4
+RBi = RB - 2 * userargs.instr_wall * 3**0.5
+RCi = userargs.instr_chamfer - 2 * userargs.instr_wall
+h1i = RBi * 3**0.5 / 2
+h2i = RBi / 3**0.5 / 2
+h3i = RBi / 3**0.5
+CBi = RCi * 2 / 3**0.5
+instr_chamfer_area = CBi**2 * 3**.5 / 4
+instr_triangle_area = RBi**2 * 3**.5 / 4
 instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
 logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
 
