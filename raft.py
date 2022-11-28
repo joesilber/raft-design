@@ -3,6 +3,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 from matplotlib.path import Path
 
+
 _raft_id_counter = 0
 
 class Raft:
@@ -254,7 +255,7 @@ class RaftProfile:
         OUTPUTS: 2 x N numpy array of (x, y) positions
         '''
         # square-ish local robot pattern
-        overwidth = self.RB / 2
+        overwidth = self.RB * 2/3
         overwidth_count = math.ceil(overwidth / pitch)
         pattern_row_x = pitch * np.arange(-overwidth_count, overwidth_count)
         pattern_row_y = np.zeros(np.shape(pattern_row_x))
@@ -269,37 +270,25 @@ class RaftProfile:
             pattern = np.append(pattern, [new_row_x, new_row_y], axis=1)
         
         # crop to actual raft triangle
-        crop_path = Path(np.tranpose(self.polygon), closed=False)
+        crop_poly = np.array([self._poly_x, self._poly_y]).transpose()
+        crop_path = Path(crop_poly, closed=False)
         included = crop_path.contains_points(np.transpose(pattern))
-
-        # NB! as of 2022-11-28, method here assumes convexity of all segments of the polygon
-        n = len(self.polygon[0])
-        pattern_limits = {}  # will be filled with keys = angles of rotation, values = x-limit at that angle
-        for i in range(n):
-            x0 = self.polygon[0][i]
-            y0 = self.polygon[1][i]
-            x1 = self.polygon[0][i+1] if i+1 < n else self.polygon[0][0]
-            y1 = self.polygon[1][i+1] if i+1 < n else self.polygon[1][0]
-            angle = math.atan2(y1 - y0, x1 - x0)
-            xlimit = 
-
-        pattern_limits = {
-            90: base_to_ctr, 
-            210: base_to_ctr,
-            330: base_to_ctr,
-            30: corner_to_ctr,
-            150: corner_to_ctr,
-            270: corner_to_ctr,
-            }
-        exclude = set()
-        for angle, x_limit in pattern_limits.items():
-            cos = np.cos(np.radians(angle))
-            sin = np.sin(np.radians(angle))
-            rotation = np.array([[cos, -sin], [sin, cos]])
-            rotated = np.matmul(rotation, pattern)
-            new_exclusions = np.argwhere(rotated[0] > x_limit).transpose()[0]
-            exclude |= set(new_exclusions)
-        pattern = np.delete(pattern, list(exclude), axis=1)
-        n_robots_in_pattern = len(pattern[0]) 
+        pattern = pattern[:,included]
+        return pattern
 
 
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    raft = Raft()
+    pattern = raft.instr_profile.generate_robot_pattern()
+    print('n_robots_in_pattern', len(pattern[0]))
+    print(pattern)
+    outline = raft.front_poly(instr=True).transpose()
+    outline_x = outline[0].tolist() + [outline[0, 0]]
+    outline_y = outline[1].tolist() + [outline[1, 0]]
+    plt.plot(outline_x, outline_y, 'k-')
+    plt.plot(pattern[0], pattern[1], 'bo')
+    plt.axis('equal')
+    plt.show()
+    pass
