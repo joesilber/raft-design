@@ -53,6 +53,9 @@ missing_columns = set(required_columns) - set(rafts.columns)
 simple_logger.assert2(not(any(missing_columns)), f'rafts input table is missing columns: {missing_columns}')
 logger.info(f'Raft positions input table: {basename}\n' + '\n'.join(rafts[['id'] + required_columns].pformat_all()))
 
+## REPLACE STUFF HERE WITH WHAT IS NOW IN RAFT CLASS
+## AND CONSIDER DOING ALL THIS DIRECTLY IN GENERATE RAFT LAYOUT MODULE -- LESS DUPLICATIVE SETUP WORK!
+
 # square-ish local robot pattern
 n_robots_per_raft = 75
 robot_pitch = 6.2
