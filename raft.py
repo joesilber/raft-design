@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
+from matplotlib.path import Path
 
 _raft_id_counter = 0
 
@@ -246,6 +247,59 @@ class RaftProfile:
         self._poly_y = [           -self.h2,        self.RC-self.h2,  self.h3 - self.RC,  self.h3 - self.RC,       self.RC - self.h2,              -self.h2]
         self._poly_z = [0.0]*len(self._poly_x)
         self.polygon = np.transpose([self._poly_x, self._poly_y, self._poly_z])
+
+    def generate_robot_pattern(self, pitch=6.2):
+        '''Produce 2D pattern of robots that fit within the polygon.
+         INPUTS: pitch ... [mm] center-to-center pitch between robot centers
+        OUTPUTS: 2 x N numpy array of (x, y) positions
+        '''
+        # square-ish local robot pattern
+        overwidth = self.RB / 2
+        overwidth_count = math.ceil(overwidth / pitch)
+        pattern_row_x = pitch * np.arange(-overwidth_count, overwidth_count)
+        pattern_row_y = np.zeros(np.shape(pattern_row_x))
+        offset_x = 0.  # overall offset of the pattern
+        offset_y = -pitch / 3**0.5  # overall offset of the pattern
+        step_x = pitch / 2  # row-to-row x pitch
+        step_y = pitch * 3**0.5 / 2  # row-to-row y pitch
+        pattern = np.array([[],[]])
+        for i in range(-overwidth_count, overwidth_count):
+            new_row_x = pattern_row_x + offset_x + step_x * (i % 2)
+            new_row_y = pattern_row_y + offset_y + step_y * i
+            pattern = np.append(pattern, [new_row_x, new_row_y], axis=1)
         
+        # crop to actual raft triangle
+        crop_path = Path(np.tranpose(self.polygon), closed=False)
+        included = crop_path.contains_points(np.transpose(pattern))
+
+        # NB! as of 2022-11-28, method here assumes convexity of all segments of the polygon
+        n = len(self.polygon[0])
+        pattern_limits = {}  # will be filled with keys = angles of rotation, values = x-limit at that angle
+        for i in range(n):
+            x0 = self.polygon[0][i]
+            y0 = self.polygon[1][i]
+            x1 = self.polygon[0][i+1] if i+1 < n else self.polygon[0][0]
+            y1 = self.polygon[1][i+1] if i+1 < n else self.polygon[1][0]
+            angle = math.atan2(y1 - y0, x1 - x0)
+            xlimit = 
+
+        pattern_limits = {
+            90: base_to_ctr, 
+            210: base_to_ctr,
+            330: base_to_ctr,
+            30: corner_to_ctr,
+            150: corner_to_ctr,
+            270: corner_to_ctr,
+            }
+        exclude = set()
+        for angle, x_limit in pattern_limits.items():
+            cos = np.cos(np.radians(angle))
+            sin = np.sin(np.radians(angle))
+            rotation = np.array([[cos, -sin], [sin, cos]])
+            rotated = np.matmul(rotation, pattern)
+            new_exclusions = np.argwhere(rotated[0] > x_limit).transpose()[0]
+            exclude |= set(new_exclusions)
+        pattern = np.delete(pattern, list(exclude), axis=1)
+        n_robots_in_pattern = len(pattern[0]) 
 
 
