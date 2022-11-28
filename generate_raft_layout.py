@@ -13,13 +13,13 @@ import math
 import numpy as np
 from numpy.polynomial import Polynomial
 from astropy.table import Table
-from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 import scipy.interpolate as interpolate
 from scipy import optimize
 import matplotlib.pyplot as plt
 import os
 import argparse
 import simple_logger
+from raft import Raft, RaftProfile
 
 timestamp_fmt = '%Y%m%dT%H%M%S'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
@@ -147,28 +147,21 @@ sphR = abs(z_ctr)
 is_convex = np.sign(z_ctr) < 1  # convention where +z is toward the fiber tips
 logger.info(f'Best-fit sphere radius = {sphR:.3f} mm, is_convex = {is_convex}')
 
-# basic raft outline
-RB = userargs.raft_tri_base
-RL = userargs.raft_length
-RC = userargs.raft_chamfer
-h1 = RB * 3**0.5 / 2  # height from base of triangle to opposite tip
-h2 = RB / 3**0.5 / 2 # height from base of triangle to center
-h3 = RB / 3**0.5  # height from center of triangle to tip
-CB = RC * 2 / 3**0.5  # chamfer base length
-for key, val in {'length (RL)': RL, 'triangle base (RB)': RB, 'triangle height (h1)': h1,
-                 'triangle base to center (h2)': h2, 'triangle center to tip (h3)': h3,
-                 'corner chamfer height (RC)': RC, 'corner chamfer base (CB)': CB}.items():
+# single raft profile --> outer geometry
+outer_profile = RaftProfile(raft_tri_base=userargs.raft_tri_base,
+                            raft_length=userargs.raft_length,
+                            raft_chamfer=userargs.raft_chamfer,
+                            )
+for key, val in {'length (RL)': outer_profile.RL, 'triangle base (RB)': outer_profile.RB, 'triangle height (h1)': outer_profile.h1,
+                'triangle base to center (h2)': outer_profile.h2, 'triangle center to tip (h3)': outer_profile.h3,
+                'corner chamfer height (RC)': outer_profile.RC, 'corner chamfer base (CB)': outer_profile.CB}.items():
     logger.info(f'Raft geometry {key.upper()} = {val:.3f}')
-raft_profile_x = [RB/2-CB,  RB/2-CB/2,    CB/2,    -CB/2,  -RB/2+CB/2,   -RB/2+CB]
-raft_profile_y = [    -h2,      RC-h2,   h3-RC,    h3-RC,       RC-h2,        -h2]
-raft_profile_z = [0.0]*len(raft_profile_x)
-raft_profile = np.transpose([raft_profile_x, raft_profile_y, raft_profile_z])
-logger.info(f'Raft profile polygon: {raft_profile.tolist()}')
+logger.info(f'Raft outer profile polygon: {outer_profile.polygon.tolist()}')
 
 # special function used for projecting from a coordinate like "S", but at rear
 # of raft, to the corresponding point at the focal surface (in convex case)
-r2 = r - RL * np.sin(np.radians(R2NUT(r)))
-z2 = R2Z(r) - RL * np.cos(np.radians(R2NUT(r)))
+r2 = r - outer_profile.RL * np.sin(np.radians(R2NUT(r)))
+z2 = R2Z(r) - outer_profile.RL * np.cos(np.radians(R2NUT(r)))
 dr2 = np.diff(r2)
 dz2 = np.diff(z2)
 dzdr2 = dz2 / dr2
@@ -180,24 +173,16 @@ rearR_to_frontR = interp1d(r2, r)
 frontR_to_rearS = interp1d(r, s2)
 frontR_to_rearR = interp1d(r, r2)
 
-# single raft instrumented area
-RBi = RB - 2 * userargs.instr_wall * 3**0.5
-RCi = userargs.instr_chamfer - 2 * userargs.instr_wall
-h1i = RBi * 3**0.5 / 2
-h2i = RBi / 3**0.5 / 2
-h3i = RBi / 3**0.5
-CBi = RCi * 2 / 3**0.5
-instr_chamfer_area = CBi**2 * 3**.5 / 4
-instr_triangle_area = RBi**2 * 3**.5 / 4
+# single raft profile --> instrumented area geometry
+instr_profile = RaftProfile(raft_tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
+                            raft_length=userargs.raft_length,
+                            raft_chamfer=userargs.instr_chamfer - 2 * userargs.instr_wall,
+                            )
+instr_chamfer_area = instr_profile.CB**2 * 3**.5 / 4
+instr_triangle_area = instr_profile.RB**2 * 3**.5 / 4
 instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
 logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
-
-# raft instrumented outline
-instr_profile_x = [RBi/2-CBi,  RBi/2-CBi/2,    CBi/2,    -CBi/2,  -RBi/2+CBi/2,   -RBi/2+CBi]
-instr_profile_y = [     -h2i,      RCi-h2i,  h3i-RCi,   h3i-RCi,       RCi-h2i,         -h2i]
-instr_profile_z = [0.0]*len(instr_profile_x)
-instr_profile = np.transpose([instr_profile_x, instr_profile_y, instr_profile_z])
-logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.tolist()}')
+logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon.tolist()}')
 
 # offset to average out the defocus of all the robots on a raft
 above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
@@ -205,192 +190,9 @@ avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
 avg_focus_offset *= -1 if is_convex else +1
 logger.info(f'Focus offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
 
-_raft_id_counter = 0
-class Raft:
-    '''Represents a single triangular raft.'''
-    
-    def __init__(self, x=0., y=0., spin0=0.):
-        '''
-        x ... [mm] x location of center of front triangle
-        y ... [mm] y location of center of front triangle
-        spin0 ... [deg] rotation of triangle, *not* including precession compensation
-        '''
-        global _raft_id_counter
-        self.id = _raft_id_counter
-        _raft_id_counter += 1
-        self.x = x
-        self.y = y
-        self.spin0 = spin0
-        self.neighbors = []
-
-    @property
-    def r(self):
-        '''radial position [mm] of center of raft at front'''
-        return math.hypot(self.x, self.y)
-    
-    @property
-    def z(self):
-        '''z position [mm] of center of raft at front'''
-        offset_correction = avg_focus_offset * math.cos(math.radians(self.nutation))
-        return float(R2Z(self.r)) + offset_correction
-
-    @property
-    def precession(self):
-        '''angular position [deg] about the z-axis, same as precession'''
-        return math.degrees(math.atan2(self.y, self.x))
-
-    @property
-    def nutation(self):
-        '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
-        return float(R2NUT(self.r))
-    
-    @property
-    def spin(self):
-        '''rotation [deg] about raft's local z-axis, *including* compensation for
-        precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
-        return float(self.spin0 - self.precession)
-
-    def front_poly(self, instr=False):
-        '''polygon of raft profile at front (i.e. at focal surface)
-        set arg instr True to use the smaller instrumented area profile'''
-        profile = instr_profile if instr else raft_profile
-        poly = profile + [0, 0, avg_focus_offset]
-        return self._place_poly(poly)
-
-    @property
-    def rear_poly(self):
-        '''polygon of raft profile at rear (i.e. at connectors bulkhead, etc)'''
-        poly = raft_profile + [0, 0, avg_focus_offset - RL]
-        return self._place_poly(poly)
-
-    @property
-    def poly3d(self):
-        '''intended for 3D plotting, includes front and rear outer closed polygons'''
-        front = self.front_poly().tolist()
-        rear = self.rear_poly.tolist()
-        poly3d = front + [front[0]]
-        for i in range(len(rear) - 1):
-            poly3d += [rear[i], rear[i+1], front[i+1]]
-        poly3d += [rear[i+1], rear[0]]
-        return poly3d
-    
-    @property
-    def poly3d_instr(self):
-        '''intended for 3D plotting, includes front instrumented area closed polygon'''
-        poly3d = self.front_poly(instr=True).tolist()
-        poly3d += [poly3d[0]]
-        return poly3d
-
-    def max_front_vertex_radius(self, instr=False):
-        '''maximum distance from the z-axis of any point in the 3d raft polygon
-        set arg instr True to use the smaller instrumented area profile'''
-        return max(self._front_vertex_radii(instr))
-
-    def min_front_vertex_radius(self, instr=False):
-        '''minimum distance from the z-axis of any point in the 3d raft polygon
-        set arg instr True to use the smaller instrumented area profile'''
-        return min(self._front_vertex_radii(instr))
-
-    def _front_vertex_radii(self, instr=False):
-        '''return distances of all points in the 3d raft polygon from the z-axis
-        set arg instr True to use the smaller instrumented area profile'''
-        all_points = np.transpose(self.front_poly(instr))
-        return np.hypot(all_points[0], all_points[1])
-
-    def front_gap(self, other_raft):
-        '''Returns min distance and perpendicular unit vector from closest segment on this
-        raft's front polygon toward corresponding closest point on "other" raft.'''
-        return Raft.poly_gap(other_raft.front_poly(), self.front_poly())
-
-    def rear_gap(self, other_raft):
-        '''Returns min distance and perpendicular unit vector from closest segment on this
-        raft's front polygon toward corresponding closest point on "other" raft.'''
-        return Raft.poly_gap(other_raft.rear_poly, self.rear_poly)
-
-    def _place_poly(self, poly):
-        '''Transform a polygon (N x 3) from the origin to the raft's center position on the
-        focal surface. The polygon is first rotated such that a vector (0, 0, 1) becomes
-        its final orientation when placed at the corresponding radius, and such that a point
-        (0, 0, 0) will land on the focal surface.'''
-        rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
-        rotated = rot.apply(poly)
-        translated = rotated + [self.x, self.y, R2Z(self.r)]
-        return translated
-
-    @staticmethod
-    def poly_gap(poly1, poly2):
-        '''Returns a magnitude and direction unit vector for closest distance between two polygons.
-        This is calculated from segments defined by poly2 to vertices defined by poly1. If the two
-        polygons overlap, returns a default value of (0, np.array([1,0,0])). The input polygons should
-        be Nx2 arrays of (x, y) or Nx3 arrays of (x, y, z) vertices. The returned unit vector points
-        perpendicularly from the nearest poly2 segment toward the corresponding nearest poly1 point.'''
-        if Raft.polygons_collide(poly1, poly2):
-            return 0, np.array([1, 0, 0])
-        test_pts = [np.array(pt) for pt in poly1]
-        segment_pts = [(poly2[i], poly2[i+1]) for i in range(len(poly2) - 1)]
-        segment_pts += [(poly2[-1], poly2[0])]  # close the polygon with last segment
-        min_dist = math.inf
-        for seg in segment_pts:
-            s0 = np.array(seg[0])
-            s1 = np.array(seg[1])
-            seg_vec = s1 - s0
-            seg_mag = np.sqrt(seg_vec.dot(seg_vec))
-            seg_unit = seg_vec / seg_mag
-            for pt in test_pts:
-                s2_mag = np.dot(pt - s0, seg_unit)
-                if s2_mag < 0:
-                    gap_vec_start = s0
-                elif s2_mag > seg_mag:
-                    gap_vec_start = s1
-                else:
-                    s2 = s2_mag * seg_unit
-                    gap_vec_start = s2
-                gap_vec = pt - gap_vec_start
-                gap_mag = np.sqrt(gap_vec.dot(gap_vec))
-                if gap_mag < min_dist:
-                    min_dist = gap_mag
-                    min_vec_unit = gap_vec / gap_mag
-        return min_dist, min_vec_unit
-
-    @staticmethod
-    def polygons_collide(poly1, poly2):
-        """Check whether two closed polygons collide.
-
-        poly1 ... Nx2 array of the 1st polygon's vertices
-        poly2 ... Nx2 array of the 2nd polygon's vertices
-
-        Returns True if the polygons intersect, False if they do not.
-
-        The algorithm is by detecting intersection of line segments, therefore the case of
-        a small polygon completely enclosed by a larger polygon will return False. Not checking
-        for this condition admittedly breaks some conceptual logic, but this case is not
-        anticipated to occur given the DESI petal geometry, and speed is at a premium.
-        """
-        for i in range(len(poly1) - 1):
-            for j in range(len(poly2) - 1):
-                if Raft.segments_intersect(poly1[i], poly1[i+1], poly2[j], poly2[j+1]):
-                    return True
-        return False
-
-    @staticmethod
-    def segments_intersect(A1, A2, B1, B2):
-        """Checks whether two 2d line segments intersect. The endpoints for segments
-        A and B are each a pair of (x, y) coordinates.
-        """
-        dx_A = A2[0] - A1[0]
-        dy_A = A2[1] - A1[1]
-        dx_B = B2[0] - B1[0]
-        dy_B = B2[1] - B1[1]
-        delta = dx_B * dy_A - dy_B * dx_A
-        if delta == 0.0:
-            return False  # parallel segments
-        s = (dx_A * (B1[1] - A1[1]) + dy_A * (A1[0] - B1[0])) / delta
-        t = (dx_B * (A1[1] - B1[1]) + dy_B * (B1[0] - A1[0])) / (-delta)
-        return (0 <= s <= 1) and (0 <= t <= 1)
-
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
-spacing_x = RB + userargs.raft_gap * math.sqrt(3)
+spacing_x = outer_profile.RB + userargs.raft_gap * math.sqrt(3)
 spacing_y = spacing_x * math.sqrt(3)/2
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
@@ -468,7 +270,15 @@ for col, typecast in other_cols.items():
 # generate raft instances
 rafts = []
 for row in t:
-    raft = Raft(x=row['x'], y=row['y'], spin0=row['spin0'])
+    raft = Raft(x=row['x'],
+                y=row['y'],
+                spin0=row['spin0'],
+                focus_offset=avg_focus_offset,
+                outer_profile=outer_profile,
+                instr_profile=instr_profile,
+                radius_to_nutation=R2NUT,
+                radius_to_z=R2Z,
+                )
     rafts += [raft]
     row['id'] = raft.id
 id_rafts = {raft.id: raft for raft in rafts}  # for lookup convenience
@@ -612,7 +422,7 @@ t2_str = '\n' + '\n'.join(t2.pformat_all())
 logger.info(t2_str)
 
 # instrumented area calcs
-avg_spacing_x = RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
+avg_spacing_x = outer_profile.RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
 avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
 logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
 instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
@@ -626,8 +436,8 @@ logger.info(f'Instrumented area ratio = (instrumented area) / (area within vigne
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
-basename = f'{timestamp}_{focsurf_name}_raftlen{RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
-typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {RL:.1f} mm' \
+basename = f'{timestamp}_{focsurf_name}_raftlen{outer_profile.RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_profile.RL:.1f} mm' \
            f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
            f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
            f'\nMaxMechanicalVertexRadius: {t2["max_front_vertex_radius"].max():.2f} mm'\
