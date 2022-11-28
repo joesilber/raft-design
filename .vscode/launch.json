@@ -5,17 +5,34 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Module",
+            "name": "generate - DESI2 - 11,250",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "1",
+                "-r", "418.0",
+                "-g", "0.4",
+                "-l", "186",
+                // "--help",
+                ],
+        },
+        
+        {
+            "name": "make_robots_table",
             "type": "python",
             "request": "launch",
             "module": "make_robots_table",
-            "justMyCode": true
+            "justMyCode": true,
             "args": [
                 "-t", "20221128T100223_DESI_raftlen186.0_nomgap0.4_maxR413.9_nrafts25_nrobots1875.csv",
                 "-r", "4478.677",
                 "--is_convex",
                 // "--help",
-                ]
-        }
+                ],
+        },
+
+
     ]
 }
