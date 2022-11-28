@@ -199,7 +199,7 @@ class Raft:
         return (0 <= s <= 1) and (0 <= t <= 1)
     
 class RaftProfile:
-    '''Basic polygonal geometry of raft.'''
+    '''Basic 2D profile geometry of raft.'''
 
     def __init__(self, raft_tri_base=80., raft_length=657., raft_chamfer=2.5):
         self._RB = raft_tri_base
