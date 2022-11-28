@@ -14,6 +14,7 @@
                 "-t", "20221128T100223_DESI_raftlen186.0_nomgap0.4_maxR413.9_nrafts25_nrobots1875.csv",
                 "-r", "4478.677",
                 "--is_convex",
+                // "--help",
                 ]
         }
     ]
