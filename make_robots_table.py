@@ -53,7 +53,17 @@ logger.info(f'Raft positions input table: {basename}\n' + '\n'.join(rafts[['id']
 
 # robot pattern local to raft
 n_robots_per_raft = 75
-robot_pitch = 6.2  # mm
+robot_pitch = 6.2  # mm, robot pitch
+base_to_ctr = 22.594  # mm, distance from base limit of raft to center
+corner_to_ctr = 37.588  # mm, distance from corner limit of raft to center
+pattern_limits = { 90: base_to_ctr, # angle of rotation, x-limit at that angle
+                  210: base_to_ctr,
+                  330: base_to_ctr,
+                   30: corner_to_ctr,
+                  150: corner_to_ctr,
+                  270: corner_to_ctr,
+                 }
 logger.info(f'Number of robots per raft = {n_robots_per_raft}')
 logger.info(f'Center-to-center pitch between robots = {robot_pitch} mm')
+logger.info(f'max robot center distance from raft center = {max_robot_dist:.3f} mm')
 
