@@ -32,16 +32,28 @@ parser.add_argument('-r', '--spherical_radius', type=float, default=math.inf,
                          'Fiber axes are kept parallel to raft z-axis. Argument should be a magnitude. Skip for ' \
                          'case of flat focal plane.',
                          )
-parser.add_argument('-c', '--is_convex', action='store_true',
+parser.add_argument('--is_convex', action='store_true',
                     help='focal surface is assumed concave, unless this argument'
                          )
 userargs = parser.parse_args()
 logger.info(f'User inputs: {userargs}')
 
 import numpy
+from astropy.table import Table
+
+# read rafts table
+basename = os.path.basename(userargs.table_path)
+rafts = Table.read(userargs.table_path)
+if 'id' not in rafts.columns:
+    rafts['id'] = [i for i in range(len(rafts))]
+required_columns = ['x', 'y', 'z', 'precession', 'nutation', 'spin']
+missing_columns = set(required_columns) - set(rafts.columns)
+simple_logger.assert2(not(any(missing_columns)), f'rafts input table is missing columns: {missing_columns}')
+logger.info(f'Raft positions input table: {basename}\n' + '\n'.join(rafts[['id'] + required_columns].pformat_all()))
 
 # robot pattern local to raft
 n_robots_per_raft = 75
 robot_pitch = 6.2  # mm
 logger.info(f'Number of robots per raft = {n_robots_per_raft}')
 logger.info(f'Center-to-center pitch between robots = {robot_pitch} mm')
+
