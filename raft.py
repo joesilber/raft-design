@@ -63,23 +63,27 @@ class Raft:
         return float(self.spin0 - self.precession)
 
     def front_poly(self, instr=False):
-        '''polygon of raft profile at front (i.e. at focal surface)
-        set arg instr True to use the smaller instrumented area profile'''
+        '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
+        surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
         poly = profile.polygon + [0, 0, self.focus_offset]
-        return self._place_poly(poly)
+        array = self._place_poly(poly)
+        return array.tolist()
 
     @property
     def rear_poly(self):
-        '''polygon of raft profile at rear (i.e. at connectors bulkhead, etc)'''
+        '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
+        connectors bulkhead, etc)'''
         poly = self.outer_profile.polygon + [0, 0, self.focus_offset - self.outer_profile.RL]
         return self._place_poly(poly)
+        return array.tolist()
 
     @property
     def poly3d(self):
-        '''intended for 3D plotting, includes front and rear outer closed polygons'''
-        front = self.front_poly().tolist()
-        rear = self.rear_poly.tolist()
+        '''Nx3 list of polygon vertices, intended for 3D plotting, includes front and rear
+        outer closed polygons'''
+        front = self.front_poly(instr=False)
+        rear = self.rear_poly
         poly3d = front + [front[0]]
         for i in range(len(rear) - 1):
             poly3d += [rear[i], rear[i+1], front[i+1]]
@@ -88,10 +92,16 @@ class Raft:
     
     @property
     def poly3d_instr(self):
-        '''intended for 3D plotting, includes front instrumented area closed polygon'''
-        poly3d = self.front_poly(instr=True).tolist()
+        '''Nx3 list of polygon vertices, intended for 3D plotting, includes front instrumented
+        area closed polygon'''
+        poly3d = self.front_poly(instr=True)
         poly3d += [poly3d[0]]
         return poly3d
+    
+    @property
+    def robot_centers(self):
+        '''Nx3'''
+        pass
 
     def max_front_vertex_radius(self, instr=False):
         '''maximum distance from the z-axis of any point in the 3d raft polygon
@@ -290,7 +300,7 @@ if __name__ == "__main__":
     print('pattern of robot centers:')
     print(pattern)
     print('n_robots_in_pattern', len(pattern[0]))        
-    outline = raft.front_poly(instr=True).transpose()
+    outline = np.transpose(raft.front_poly(instr=True))
     outline_x = outline[0].tolist() + [outline[0, 0]]
     outline_y = outline[1].tolist() + [outline[1, 0]]
     plt.plot(outline_x, outline_y, 'k-')
