@@ -31,7 +31,7 @@ class Raft:
         self.neighbors = []
         self.focus_offset = focus_offset
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
-        self.instr_profile = instr_profile if instr_profile else RaftProfile()
+        self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
         self.radius_to_nutation = radius_to_nutation if radius_to_nutation else lambda x: np.zeros(np.shape(x))
         self.radius_to_z = radius_to_z if radius_to_z else lambda x: np.zeros(np.shape(x))
 
@@ -203,10 +203,15 @@ class Raft:
 class RaftProfile:
     '''Basic 2D profile geometry of raft.'''
 
-    def __init__(self, raft_tri_base=80., raft_length=657., raft_chamfer=2.5):
-        self._RB = raft_tri_base
-        self._RL = raft_length
-        self._RC = raft_chamfer
+    def __init__(self, tri_base=80., length=657., chamfer=2.5):
+        '''
+        tri_base ... base length of triangular outline of raft
+        length ... length of raft
+        chamfer ... trim-depth of the three raft corners, measured from triangle tip towards center
+        '''
+        self._RB = tri_base
+        self._RL = length
+        self._RC = chamfer
         self._update()
 
     @property
@@ -282,8 +287,9 @@ if __name__ == "__main__":
 
     raft = Raft()
     pattern = raft.instr_profile.generate_robot_pattern()
-    print('n_robots_in_pattern', len(pattern[0]))
+    print('pattern of robot centers:')
     print(pattern)
+    print('n_robots_in_pattern', len(pattern[0]))        
     outline = raft.front_poly(instr=True).transpose()
     outline_x = outline[0].tolist() + [outline[0, 0]]
     outline_y = outline[1].tolist() + [outline[1, 0]]

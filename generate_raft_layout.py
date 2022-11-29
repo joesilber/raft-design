@@ -148,9 +148,9 @@ is_convex = np.sign(z_ctr) < 1  # convention where +z is toward the fiber tips
 logger.info(f'Best-fit sphere radius = {sphR:.3f} mm, is_convex = {is_convex}')
 
 # single raft profile --> outer geometry
-outer_profile = RaftProfile(raft_tri_base=userargs.raft_tri_base,
-                            raft_length=userargs.raft_length,
-                            raft_chamfer=userargs.raft_chamfer,
+outer_profile = RaftProfile(tri_base=userargs.raft_tri_base,
+                            length=userargs.raft_length,
+                            chamfer=userargs.raft_chamfer,
                             )
 for key, val in {'length (RL)': outer_profile.RL, 'triangle base (RB)': outer_profile.RB, 'triangle height (h1)': outer_profile.h1,
                 'triangle base to center (h2)': outer_profile.h2, 'triangle center to tip (h3)': outer_profile.h3,
@@ -174,9 +174,9 @@ frontR_to_rearS = interp1d(r, s2)
 frontR_to_rearR = interp1d(r, r2)
 
 # single raft profile --> instrumented area geometry
-instr_profile = RaftProfile(raft_tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
-                            raft_length=userargs.raft_length,
-                            raft_chamfer=userargs.instr_chamfer - 2 * userargs.instr_wall,
+instr_profile = RaftProfile(tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
+                            length=userargs.raft_length,
+                            chamfer=userargs.instr_chamfer - 2 * userargs.instr_wall,
                             )
 instr_chamfer_area = instr_profile.CB**2 * 3**.5 / 4
 instr_triangle_area = instr_profile.RB**2 * 3**.5 / 4
