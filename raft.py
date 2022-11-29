@@ -66,7 +66,7 @@ class Raft:
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
-        poly = profile.polygon + [0, 0, self.focus_offset]
+        poly = np.array(profile.polygon) + [0, 0, self.focus_offset]
         array = self._place_poly(poly)
         return array.tolist()
 
@@ -74,8 +74,8 @@ class Raft:
     def rear_poly(self):
         '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
         connectors bulkhead, etc)'''
-        poly = self.outer_profile.polygon + [0, 0, self.focus_offset - self.outer_profile.RL]
-        return self._place_poly(poly)
+        poly = np.array(self.outer_profile.polygon) + [0, 0, self.focus_offset - self.outer_profile.RL]
+        array = self._place_poly(poly)
         return array.tolist()
 
     @property
@@ -219,50 +219,37 @@ class RaftProfile:
         length ... length of raft
         chamfer ... trim-depth of the three raft corners, measured from triangle tip towards center
         '''
-        self._RB = tri_base
-        self._RL = length
-        self._RC = chamfer
-        self._update()
+        self.RB = tri_base
+        self.RL = length
+        self.RC = chamfer
 
     @property
-    def RB(self):
-        '''Raft triangle base width.'''
-        return self._RB
-
-    @RB.setter
-    def RB(self, value):
-       self._RB = value
-       self._update()    
+    def h1(self):
+        '''height from base of triangle to opposite tip '''
+        return self.RB * 3**0.5 / 2
 
     @property
-    def RL(self):
-        '''Raft length.'''
-        return self._RL
-
-    @RL.setter
-    def RL(self, value):
-       self._RL = value
-       self._update()
+    def h2(self):
+        '''height from base of triangle to center'''
+        return self.RB / 3**0.5 / 2
     
     @property
-    def RC(self):
-        '''Raft corner chamfer.'''
-        return self._RC
+    def h3(self):
+        '''height from center of triangle to tip'''
+        return self.RB / 3**0.5
 
-    @RC.setter
-    def RC(self, value):
-       self._RC = value
-       self._update()  
-
-    def _update(self):
-        self.h1 = self.RB * 3**0.5 / 2  # height from base of triangle to opposite tip
-        self.h2 = self.RB / 3**0.5 / 2 # height from base of triangle to center
-        self.h3 = self.RB / 3**0.5  # height from center of triangle to tip
-        self.CB = self.RC * 2 / 3**0.5  # chamfer base length
-        self._poly_x = [self.RB/2 - self.CB,  self.RB/2 - self.CB/2,          self.CB/2,         -self.CB/2,  -self.RB/2 + self.CB/2,  -self.RB/2 + self.CB]
-        self._poly_y = [           -self.h2,        self.RC-self.h2,  self.h3 - self.RC,  self.h3 - self.RC,       self.RC - self.h2,              -self.h2]
-        self._poly_z = [0.0]*len(self._poly_x)
-        self.polygon = np.transpose([self._poly_x, self._poly_y, self._poly_z])
+    @property
+    def CB(self):
+        '''chamfer base length'''
+        return self.RC * 2 / 3**0.5
+    
+    @property
+    def polygon(self):
+        '''Nx3 list of (x, y, z) vertices representing the profile geometry'''
+        poly_x = [self.RB/2 - self.CB,  self.RB/2 - self.CB/2,          self.CB/2,         -self.CB/2,  -self.RB/2 + self.CB/2,  -self.RB/2 + self.CB]
+        poly_y = [           -self.h2,        self.RC-self.h2,  self.h3 - self.RC,  self.h3 - self.RC,       self.RC - self.h2,              -self.h2]
+        poly_z = [0.0]*len(poly_x)
+        return np.transpose([poly_x, poly_y, poly_z]).tolist()
 
     def generate_robot_pattern(self, pitch=6.2):
         '''Produce 2D pattern of robots that fit within the polygon.
@@ -285,8 +272,8 @@ class RaftProfile:
             pattern = np.append(pattern, [new_row_x, new_row_y], axis=1)
         
         # crop to actual raft triangle
-        crop_poly = np.array([self._poly_x, self._poly_y]).transpose()
-        crop_path = Path(crop_poly, closed=False)
+        crop_poly2D = np.array(self.polygon)[:,:2]
+        crop_path = Path(crop_poly2D, closed=False)
         included = crop_path.contains_points(np.transpose(pattern))
         pattern = pattern[:,included]
         return pattern

@@ -156,7 +156,7 @@ for key, val in {'length (RL)': outer_profile.RL, 'triangle base (RB)': outer_pr
                 'triangle base to center (h2)': outer_profile.h2, 'triangle center to tip (h3)': outer_profile.h3,
                 'corner chamfer height (RC)': outer_profile.RC, 'corner chamfer base (CB)': outer_profile.CB}.items():
     logger.info(f'Raft geometry {key.upper()} = {val:.3f}')
-logger.info(f'Raft outer profile polygon: {outer_profile.polygon.tolist()}')
+logger.info(f'Raft outer profile polygon: {outer_profile.polygon}')
 
 # special function used for projecting from a coordinate like "S", but at rear
 # of raft, to the corresponding point at the focal surface (in convex case)
@@ -182,7 +182,7 @@ instr_chamfer_area = instr_profile.CB**2 * 3**.5 / 4
 instr_triangle_area = instr_profile.RB**2 * 3**.5 / 4
 instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
 logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
-logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon.tolist()}')
+logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon}')
 
 # offset to average out the defocus of all the robots on a raft
 above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
