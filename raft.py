@@ -109,6 +109,7 @@ class Raft:
         points3D = np.transpose(points2D).tolist() + [[0]*len(points2D)]
         dummy = 10.0
         focused = np.transpose(points3D) + [0, 0, dummy]  # TO-DO - replace dummy placeholder with actual shifts to best-fit sphere
+# also to-do, add function that reads this list of centers and says which points intersect insteumented area perimeter 
         placed = self._place_poly(focused)
         return placed
 
