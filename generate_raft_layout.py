@@ -453,7 +453,7 @@ for key, unit in {'z error': 'mm', 'chief ray error': 'deg'}.items():
     argmax = robots[key].argmax()
     argmin = robots[key].argmin()
     prefix = 'robot centers -->'
-    logger.info(f'{prefix} max {key}  = {robots[key][argmax]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmax]}, at radius {robots["r"][argmax]:.3f} mm')
+    logger.info(f'{prefix} max {key} of robot centers = {robots[key][argmax]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmax]}, at radius {robots["r"][argmax]:.3f} mm')
     logger.info(f'{prefix} min {key} of robot centers = {robots[key][argmin]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmin]}, at radius {robots["r"][argmin]:.3f} mm')
     logger.info(f'{prefix} mean {key} of robot centers = {robots[key].mean():.3f} {unit}')
     logger.info(f'{prefix} median {key} of robot centers = {np.median(robots[key]):.3f} {unit}')
