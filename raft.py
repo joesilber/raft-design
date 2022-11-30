@@ -75,7 +75,7 @@ class Raft:
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
-        poly = np.array(profile.polygon) + [0, 0, self.focus_offset]
+        poly = profile.polygon3D + [0, 0, self.focus_offset]
         array = self._place_poly(poly)
         return array.tolist()
 
@@ -83,7 +83,7 @@ class Raft:
     def rear_poly(self):
         '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
         connectors bulkhead, etc)'''
-        poly = np.array(self.outer_profile.polygon) + [0, 0, self.focus_offset - self.outer_profile.RL]
+        poly = np.array(self.outer_profile.polygon3D) + [0, 0, self.focus_offset - self.outer_profile.RL]
         array = self._place_poly(poly)
         return array.tolist()
 
@@ -296,20 +296,23 @@ class RaftProfile:
         return self.RC * 2 / 3**0.5
     
     @property
-    def polygon(self):
+    def polygon2D(self):
         '''Nx2 list of (x, y) vertices representing the profile geometry'''
         poly_x = [self.RB/2 - self.CB,  self.RB/2 - self.CB/2,          self.CB/2,         -self.CB/2,  -self.RB/2 + self.CB/2,  -self.RB/2 + self.CB]
         poly_y = [           -self.h2,        self.RC-self.h2,  self.h3 - self.RC,  self.h3 - self.RC,       self.RC - self.h2,              -self.h2]
         return np.transpose([poly_x, poly_y]).tolist()
+    
+    @property
+    def polygon3D(self):
+        '''Same as polygon2D but with a third column of zeros added for the user's convenience'''
+        poly2D = self.polygon2D
+        poly3D = np.column_stack((poly2D, [0]*np.shape(poly2D)[0]))
+        return poly3D.tolist()
 
     def generate_robot_pattern(self, pitch=6.2):
-        '''Produce 2D pattern of robots that fit within the polygon, and a list saying
-        which points lie on the perimeter.
-
-         INPUTS: pitch ... [mm] center-to-center distance between robots within the raft
-
-        OUTPUTS: Nx2 list of (x, y) positions
-                 Nx1 list of booleans indicating for each point whether it is on the perimeter
+        '''Produce 2D pattern of robots that fit within the polygon.
+          INPUTS:   pitch ... [mm] center-to-center distance between robots within the raft
+          OUTPUTS:  Nx2 list of (x, y) positions
         '''
         # square-ish local robot pattern
         overwidth = self.RB * 2/3
@@ -328,27 +331,19 @@ class RaftProfile:
         pattern = np.transpose(pattern)
         
         # crop to actual raft triangle
-        crop_poly = np.array(self.polygon)
+        crop_poly = np.array(self.polygon2D)
         crop_path = Path(crop_poly, closed=False)
         included = crop_path.contains_points(pattern)
         pattern = pattern[:, included]
 
-        # determine perimeter robots
-        bottom_row_y = min(pattern[:, 1])
-        base_segment_y = min(crop_poly[:, 1])
-        perimeter_scale = bottom_row_y / base_segment_y * (base_segment_y - pitch) / base_segment_y
-        perim_path = crop_path.transformed(Affine2D.scale(perimeter_scale))
-        interior = perim_path.contains_points(pattern)
-        is_perimeter = np.logical_not(interior)
-
-        return pattern.tolist(), is_perimeter.tolist()
+        return pattern.tolist()
     
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     raft = Raft(sphR=4000)
-    pattern2D, is_perimeter = raft.instr_profile.generate_robot_pattern()
+    pattern2D = raft.instr_profile.generate_robot_pattern()
     print('pattern of robot centers (2D):\n', pattern2D)
     print('n_robots_in_pattern', len(pattern2D[0]))
     pattern3D = raft.robot_centers
