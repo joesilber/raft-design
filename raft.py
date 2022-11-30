@@ -11,7 +11,7 @@ class Raft:
     
     def __init__(self, x=0., y=0., spin0=0., focus_offset=0.,
                  outer_profile=None, instr_profile=None,
-                 radius_to_nutation=None, radius_to_z=None,
+                 r2nut=None, r2z=None,
                  robot_pitch=6.2):
         '''
         x ... [mm] x location of center of front triangle
@@ -20,8 +20,8 @@ class Raft:
         focus_offset ... [mm] focus shift of raft, along z-axis local to the raft
         outer_profile ... RaftProfile instance, defining outer geometry
         instr_profile ... RaftProfile instance, defining instrumented geometry
-        radius_to_nutation ... function for converting focal plane radius to nutation angle of raft
-        radius_to_z ... function for converting focal plane radius to z position of raft
+        r2nut ... function for converting focal plane radius to nutation angle of raft
+        r2z ... function for converting focal plane radius to z position of raft
         robot_pitch ... center-to-center distance between robots within the raft
         '''
         global _raft_id_counter
@@ -34,8 +34,8 @@ class Raft:
         self.focus_offset = focus_offset
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
         self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
-        self.radius_to_nutation = radius_to_nutation if radius_to_nutation else lambda x: np.zeros(np.shape(x))
-        self.radius_to_z = radius_to_z if radius_to_z else lambda x: np.zeros(np.shape(x))
+        self.r2nut = r2nut if r2nut else lambda x: np.zeros(np.shape(x))
+        self.r2z = r2z if r2z else lambda x: np.zeros(np.shape(x))
         self.robot_pitch = robot_pitch
 
     @property
@@ -47,7 +47,7 @@ class Raft:
     def z(self):
         '''z position [mm] of center of raft at front'''
         offset_correction = self.focus_offset * math.cos(math.radians(self.nutation))
-        return float(self.radius_to_z(self.r)) + offset_correction
+        return float(self.r2z(self.r)) + offset_correction
 
     @property
     def precession(self):
@@ -57,7 +57,7 @@ class Raft:
     @property
     def nutation(self):
         '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
-        return float(self.radius_to_nutation(self.r))
+        return float(self.r2nut(self.r))
     
     @property
     def spin(self):
@@ -145,7 +145,7 @@ class Raft:
         (0, 0, 0) will land on the focal surface.'''
         rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
         rotated = rot.apply(poly)
-        translated = rotated + [self.x, self.y, self.radius_to_z(self.r)]
+        translated = rotated + [self.x, self.y, self.r2z(self.r)]
         return translated
 
     @staticmethod

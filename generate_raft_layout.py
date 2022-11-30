@@ -277,8 +277,8 @@ for row in t:
                 focus_offset=avg_focus_offset,
                 outer_profile=outer_profile,
                 instr_profile=instr_profile,
-                radius_to_nutation=R2NUT,
-                radius_to_z=R2Z,
+                r2nut=R2NUT,
+                r2z=R2Z,
                 )
     rafts += [raft]
     row['id'] = raft.id
