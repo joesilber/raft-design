@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
+from scipy import optimize
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from astropy.table import Table
@@ -10,7 +11,7 @@ _raft_id_counter = 0
 class Raft:
     '''Represents a single triangular raft.'''
     
-    def __init__(self, x=0., y=0., spin0=0., focus_offset=0.,
+    def __init__(self, x=0., y=0., spin0=0.,
                  outer_profile=None, instr_profile=None,
                  r2nut=None, r2z=None, sphR=math.inf,
                  robot_pitch=6.2, robot_max_extent=4.4,
@@ -19,7 +20,6 @@ class Raft:
         x ... [mm] x location of center of front triangle
         y ... [mm] y location of center of front triangle
         spin0 ... [deg] rotation of triangle, *not* including precession compensation
-        focus_offset ... [mm] focus shift of raft, along z-axis local to the raft
         outer_profile ... RaftProfile instance, defining outer geometry
         instr_profile ... RaftProfile instance, defining instrumented geometry
         r2nut ... [mm --> mm] function for converting focal plane radius to nutation angle of raft
@@ -36,7 +36,6 @@ class Raft:
         self.y = y
         self.spin0 = spin0
         self.neighbors = []
-        self.focus_offset = focus_offset
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
         self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
         self.r2nut = r2nut if r2nut else lambda x: np.zeros(np.shape(x))
@@ -44,17 +43,38 @@ class Raft:
         self.sphR = sphR
         self.robot_pitch = robot_pitch
         self.robot_max_extent = robot_max_extent
+        self._focus_offset = 0.
+        self._update_focus_offset()
 
     @property
     def r(self):
         '''radial position [mm] of center of raft at front'''
         return math.hypot(self.x, self.y)
     
+    def _update_focus_offset(self):
+        '''focus shift of raft, along z-axis local to the raft'''
+        # 2022-11-30 - JHS - in principle would be more optimal to convert
+        # both defocus and chief ray errors into the same currency (throughput
+        # loss), and minimize on that.
+        points3D = self._spherical_robot_pattern()
+        orig_offset = self._focus_offset  # keep for ease of debugging
+        def calc_focus_err(offset):
+            self._focus_offset = offset
+            placed = self._place_poly(points3D)
+            r = np.hypot(placed[:,0], placed[:,1])
+            z_errors = placed[:,2] - self.r2z(r)
+            focus_errors = z_errors/math.cos(math.radians(self.nutation))
+            norm_error = (np.sum(focus_errors**2)/len(focus_errors))**0.5
+            return norm_error
+        guess = orig_offset
+        result = optimize.least_squares(fun=calc_focus_err, x0=guess)
+        self._focus_offset = float(result.x)
+    
     @property
     def z(self):
         '''z position [mm] of center of raft at front'''
-        offset_correction = self.focus_offset * math.cos(math.radians(self.nutation))
-        return float(self.r2z(self.r)) + offset_correction
+        offset_correction = self._focus_offset * math.cos(math.radians(self.nutation))
+        return float(self.r2z(self.r) + offset_correction)
 
     @property
     def precession(self):
@@ -76,7 +96,7 @@ class Raft:
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
-        poly = np.array(profile.polygon3D) + [0, 0, self.focus_offset]
+        poly = np.array(profile.polygon3D) + [0, 0, self._focus_offset]
         placed = self._place_poly(poly)
         return placed.tolist()
 
@@ -84,7 +104,7 @@ class Raft:
     def rear_poly(self):
         '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
         connectors bulkhead, etc)'''
-        poly = np.array(self.outer_profile.polygon3D) + [0, 0, self.focus_offset - self.outer_profile.RL]
+        poly = np.array(self.outer_profile.polygon3D) + [0, 0, self._focus_offset - self.outer_profile.RL]
         placed = self._place_poly(poly)
         return placed.tolist()
 
@@ -120,16 +140,9 @@ class Raft:
             precession, nutation, spin ... angle of robot central axes
             intersects perimeter ... whether each robot's patrol disk intersects outline of raft
         '''
-        points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
-        points2D = np.transpose(points2D)
+        points3D = self._spherical_robot_pattern()
+        points2D = np.transpose(points3D)[:2]
         n_pts = len(points2D[0])
-        local_r = np.hypot(points2D[0], points2D[1])
-        if np.isneginf(self.sphR) or np.isposinf(self.sphR):
-            dz = np.zeros(np.shape(local_r))
-        else:
-            sign = np.sign(self.sphR)
-            dz = self.sphR - sign*(self.sphR**2 - local_r**2)**0.5
-        points3D = np.transpose(np.append(points2D, [dz], axis=0))
         if global_coords:
             points3D = self._place_poly(points3D)
             # 2022-11-30 - JHS - Current design assumption is we will  
@@ -147,18 +160,22 @@ class Raft:
                 'spin': angles[:,2],
                 'intersects perimeter': intersects_perimeter,
                 }
+        data['r'] = np.hypot(data['x'], data['y'])
         table = Table(data)
         return table
     
-    @property
-    def robot_angles(self):
-        '''Nx3 list of (precession, nutation, spin) coordinates of the individual
-        robots on the raft. These are in the global coordinate system of the focal
-        plane.'''
-       
-        points3D = self.robot_centers
-        
-        return angles
+    def _spherical_robot_pattern(self):
+        '''generate 3D robot pattern, centered at origin, with robot centers placed on nominal sphere'''
+        points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
+        points2D = np.transpose(points2D)
+        local_r = np.hypot(points2D[0], points2D[1])
+        if np.isneginf(self.sphR) or np.isposinf(self.sphR):
+            dz = np.zeros(np.shape(local_r))
+        else:
+            sign = np.sign(self.sphR)
+            dz = self.sphR - sign*(self.sphR**2 - local_r**2)**0.5
+        points3D = np.transpose(np.append(points2D, [dz], axis=0))
+        return points3D.tolist()
 
     def max_front_vertex_radius(self, instr=False):
         '''maximum distance from the z-axis of any point in the 3d raft polygon

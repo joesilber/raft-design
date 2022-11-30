@@ -187,12 +187,6 @@ instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
 logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
 logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon2D}')
 
-# offset to average out the defocus of all the robots on a raft
-above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
-avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
-avg_focus_offset *= +1 if is_convex else -1
-logger.info(f'Raft focus z offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
-
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
 spacing_x = outer_profile.RB + userargs.raft_gap * math.sqrt(3)
@@ -276,7 +270,6 @@ for row in t:
     raft = Raft(x=row['x'],
                 y=row['y'],
                 spin0=row['spin0'],
-                focus_offset=avg_focus_offset,
                 outer_profile=outer_profile,
                 instr_profile=instr_profile,
                 r2nut=R2NUT,
@@ -441,7 +434,7 @@ total_instr_area_ratio = total_instr_area / surface_area_within_vigR
 logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
 # table of individual robot center positions
-robot_table_headers = ['global robot idx', 'raft idx', 'local robot idx', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
+robot_table_headers = ['global robot idx', 'raft idx', 'local robot idx', 'r', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
 raft_robot_tables = []
 for raft in rafts2:
     these_robots = raft.generate_robots_table(global_coords=True)
@@ -451,19 +444,20 @@ for raft in rafts2:
 robots = vstack(raft_robot_tables)
 robots['global robot idx'] = np.arange(len(robots))
 robots = robots[robot_table_headers]
-r_robots = np.hypot(robots['x'], robots['y'])
-ideal_asphere_z = R2Z(r_robots)
-bestfit_sphere_z = sphR_sign*(sphR - (sphR**2 - r_robots**2)**0.5)
-z_error_bestfitsphere_wrt_asphere = bestfit_sphere_z - ideal_asphere_z
-z_error_robots_wrt_bestfitsphere = robots['z'] - bestfit_sphere_z
-z_error_raftcenters_wrt_bestfitsphere = t2['z'] - sphR_sign*(sphR - (sphR**2 - t2['radius']**2)**0.5)
-z_error_raftcenters_wrt_asphere = t2['z'] - R2Z(t2['radius'])
-robots['z error'] = robots['z'] - ideal_asphere_z
 logger.info(f'Generated table of {len(robots)} individual robot positions.')
-logger.info(f'Max z error of {len(robots)} robot center positions = {max(robots["z error"]):.3f} mm')
-logger.info(f'Min z error of {len(robots)} robot center positions = {min(robots["z error"]):.3f} mm')
-logger.info(f'(For the best-fit sphere radius {sphR:.1f} mm, max departure from asphere = {max(z_error_bestfitsphere_wrt_asphere):.3f} mm)')
-logger.info(f'(For the best-fit sphere radius {sphR:.1f} mm, min departure from asphere = {min(z_error_bestfitsphere_wrt_asphere):.3f} mm)')
+ideal_asphere_z = R2Z(robots['r'])
+ideal_asphere_nut = R2NUT(robots['r'])
+robots['chief ray error'] = robots['nutation'] - ideal_asphere_nut
+robots['z error'] = robots['z'] - ideal_asphere_z
+for key, unit in {'z error': 'mm', 'chief ray error': 'deg'}.items():
+    argmax = robots[key].argmax()
+    argmin = robots[key].argmin()
+    prefix = 'robot centers -->'
+    logger.info(f'{prefix} max {key}  = {robots[key][argmax]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmax]}, at radius {robots["r"][argmax]:.3f} mm')
+    logger.info(f'{prefix} min {key} of robot centers = {robots[key][argmin]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmin]}, at radius {robots["r"][argmin]:.3f} mm')
+    logger.info(f'{prefix} mean {key} of robot centers = {robots[key].mean():.3f} {unit}')
+    logger.info(f'{prefix} median {key} of robot centers = {np.median(robots[key]):.3f} {unit}')
+    logger.info(f'{prefix} rms {key} of robot centers = {(np.sum(robots[key]**2)/len(robots))**0.5:.3f} {unit}')
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
