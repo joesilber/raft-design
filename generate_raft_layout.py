@@ -12,7 +12,7 @@ from datetime import datetime
 import math
 import numpy as np
 from numpy.polynomial import Polynomial
-from astropy.table import Table
+from astropy.table import Table, vstack
 import scipy.interpolate as interpolate
 from scipy import optimize
 import matplotlib.pyplot as plt
@@ -279,6 +279,8 @@ for row in t:
                 instr_profile=instr_profile,
                 r2nut=R2NUT,
                 r2z=R2Z,
+                sphR=sphR*(-1 if is_convex else +1),
+                robot_pitch=userargs.robot_pitch,
                 )
     rafts += [raft]
     row['id'] = raft.id
@@ -434,6 +436,27 @@ surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
 logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
 total_instr_area_ratio = total_instr_area / surface_area_within_vigR
 logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
+
+# table of individual robot center positions
+robot_table_headers = ['robot idx', 'raft loc id', 'robot loc id', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
+robots = Table(names=robot_table_headers)
+raft_robot_tables = []
+for raft in rafts:
+    points = np.transpose(raft.robot_centers)
+    angles = np.transpose(raft.robot_angles)
+    data = {'x': points[0],
+            'y': points[1],
+            'z': points[2],
+            'precession': angles[0],
+            'nutation': angles[1],
+            'spin': angles[2],
+            'raft loc id': raft.id * np.ones_like(points[0]),
+            'robot loc id': np.arange(len(points[0]))
+            }
+    raft_robot_tables += [Table(data)]
+robots = vstack(raft_robot_tables)
+robots['robot idx'] = np.arange(len(robots))
+robots = robots[robot_table_headers]
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()

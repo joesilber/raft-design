@@ -2,7 +2,8 @@ import math
 import numpy as np
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 from matplotlib.path import Path
-
+from matplotlib.transforms import Affine2D
+from astropy import Table
 
 _raft_id_counter = 0
 
@@ -11,8 +12,9 @@ class Raft:
     
     def __init__(self, x=0., y=0., spin0=0., focus_offset=0.,
                  outer_profile=None, instr_profile=None,
-                 r2nut=None, r2z=None,
-                 robot_pitch=6.2):
+                 r2nut=None, r2z=None, sphR=math.inf,
+                 robot_pitch=6.2, robot_patrol_radius=3.6,
+                 ):
         '''
         x ... [mm] x location of center of front triangle
         y ... [mm] y location of center of front triangle
@@ -22,7 +24,10 @@ class Raft:
         instr_profile ... RaftProfile instance, defining instrumented geometry
         r2nut ... function for converting focal plane radius to nutation angle of raft
         r2z ... function for converting focal plane radius to z position of raft
+        sphR ... spherical radius which approximates focal surface; sign convention is:
+                 sphR > 0 means concave, sphR < 0 means convex, sphR ~ infinity means flat
         robot_pitch ... center-to-center distance between robots within the raft
+        robot_patrol_radius ... reach of fi
         '''
         global _raft_id_counter
         self.id = _raft_id_counter
@@ -36,6 +41,7 @@ class Raft:
         self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
         self.r2nut = r2nut if r2nut else lambda x: np.zeros(np.shape(x))
         self.r2z = r2z if r2z else lambda x: np.zeros(np.shape(x))
+        self.sphR = sphR
         self.robot_pitch = robot_pitch
 
     @property
@@ -101,17 +107,53 @@ class Raft:
         poly3d += [poly3d[0]]
         return poly3d
     
-    @property
-    def robot_centers(self):
-        '''Nx3 list of (x, y, z) center points of the individual robots on the raft.
-        These are in the global coordinate system of the focal plane.'''
+    def generate_robots_table(self, global_coords=True):
+        '''Returns an astropy table describing the individual robots on the raft.
+
+        Boolean argument global_coords controls whether to return coordinates and
+        angles local to the raft or global to the focal plane.
+
+        Returned table includes columns:
+            idx ... integer id, locally unique within this raft
+            x, y, z ... cartesian coordinates of individual robot centers
+            precession, nutation, spin ... angle of robot central axes
+            intersects_perimeter ... whether each robot's patrol disk intersects outline of raft
+        '''
         points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
-        points3D = np.transpose(points2D).tolist() + [[0]*len(points2D)]
-        dummy = 10.0
-        focused = np.transpose(points3D) + [0, 0, dummy]  # TO-DO - replace dummy placeholder with actual shifts to best-fit sphere
-# also to-do, add function that reads this list of centers and says which points intersect insteumented area perimeter 
-        placed = self._place_poly(focused)
-        return placed
+        points2D = np.transpose(points2D)
+        local_r = np.hypot(points2D[0], points2D[1])
+        if np.isneginf(self.sphR) or np.isposinf(self.sphR):
+            dz = np.zeros(np.shape(local_r))
+        else:
+            dz = self.sphR - (self.sphR**2 - local_r**2)**0.5
+        points3D = np.transpose(np.append(points2D, [dz], axis=0))
+        if global_coords:
+            points3D = self._place_poly(points3D)
+            angles = np.ones_like(points3D) * [self.precession, self.nutation, self.spin]
+        else:
+            angles = np.zeros_like(points3D)
+        data = {'idx': np.arange(len(points3D[0])),
+                'x': points3D[0],
+                'y': points3D[1],
+                'z': points3D[2],
+                'precession': angles[0],
+                'nutation': angles[1],
+                'spin': angles[2],
+                'intersects_perimeter': ,
+                }
+        table = Table(data)
+        return table
+    
+    @property
+    def robot_angles(self):
+        '''Nx3 list of (precession, nutation, spin) coordinates of the individual
+        robots on the raft. These are in the global coordinate system of the focal
+        plane.'''
+        # 2022-11-30 - JHS - Current design assumption is we will keep all robot
+        # center axes parallel to the raft.
+        points3D = self.robot_centers
+        
+        return angles
 
     def max_front_vertex_radius(self, instr=False):
         '''maximum distance from the z-axis of any point in the 3d raft polygon
@@ -255,16 +297,19 @@ class RaftProfile:
     
     @property
     def polygon(self):
-        '''Nx3 list of (x, y, z) vertices representing the profile geometry'''
+        '''Nx2 list of (x, y) vertices representing the profile geometry'''
         poly_x = [self.RB/2 - self.CB,  self.RB/2 - self.CB/2,          self.CB/2,         -self.CB/2,  -self.RB/2 + self.CB/2,  -self.RB/2 + self.CB]
         poly_y = [           -self.h2,        self.RC-self.h2,  self.h3 - self.RC,  self.h3 - self.RC,       self.RC - self.h2,              -self.h2]
-        poly_z = [0.0]*len(poly_x)
-        return np.transpose([poly_x, poly_y, poly_z]).tolist()
+        return np.transpose([poly_x, poly_y]).tolist()
 
     def generate_robot_pattern(self, pitch=6.2):
-        '''Produce 2D pattern of robots that fit within the polygon.
+        '''Produce 2D pattern of robots that fit within the polygon, and a list saying
+        which points lie on the perimeter.
+
          INPUTS: pitch ... [mm] center-to-center distance between robots within the raft
+
         OUTPUTS: Nx2 list of (x, y) positions
+                 Nx1 list of booleans indicating for each point whether it is on the perimeter
         '''
         # square-ish local robot pattern
         overwidth = self.RB * 2/3
@@ -280,20 +325,30 @@ class RaftProfile:
             new_row_x = pattern_row_x + offset_x + step_x * (i % 2)
             new_row_y = pattern_row_y + offset_y + step_y * i
             pattern = np.append(pattern, [new_row_x, new_row_y], axis=1)
+        pattern = np.transpose(pattern)
         
         # crop to actual raft triangle
-        crop_poly2D = np.array(self.polygon)[:,:2]
-        crop_path = Path(crop_poly2D, closed=False)
-        included = crop_path.contains_points(np.transpose(pattern))
-        pattern = pattern[:,included]
-        return pattern.transpose().tolist()
+        crop_poly = np.array(self.polygon)
+        crop_path = Path(crop_poly, closed=False)
+        included = crop_path.contains_points(pattern)
+        pattern = pattern[:, included]
 
+        # determine perimeter robots
+        bottom_row_y = min(pattern[:, 1])
+        base_segment_y = min(crop_poly[:, 1])
+        perimeter_scale = bottom_row_y / base_segment_y * (base_segment_y - pitch) / base_segment_y
+        perim_path = crop_path.transformed(Affine2D.scale(perimeter_scale))
+        interior = perim_path.contains_points(pattern)
+        is_perimeter = np.logical_not(interior)
+
+        return pattern.tolist(), is_perimeter.tolist()
+    
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    raft = Raft()
-    pattern2D = raft.instr_profile.generate_robot_pattern()
+    raft = Raft(sphR=4000)
+    pattern2D, is_perimeter = raft.instr_profile.generate_robot_pattern()
     print('pattern of robot centers (2D):\n', pattern2D)
     print('n_robots_in_pattern', len(pattern2D[0]))
     pattern3D = raft.robot_centers
