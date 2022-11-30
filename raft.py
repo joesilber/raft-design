@@ -3,7 +3,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
-from astropy import Table
+from astropy.table import Table
 
 _raft_id_counter = 0
 
@@ -13,7 +13,7 @@ class Raft:
     def __init__(self, x=0., y=0., spin0=0., focus_offset=0.,
                  outer_profile=None, instr_profile=None,
                  r2nut=None, r2z=None, sphR=math.inf,
-                 robot_pitch=6.2, robot_patrol_radius=3.6,
+                 robot_pitch=6.2, robot_max_extent=4.4,
                  ):
         '''
         x ... [mm] x location of center of front triangle
@@ -27,7 +27,7 @@ class Raft:
         sphR ... spherical radius which approximates focal surface; sign convention is:
                  sphR > 0 means concave, sphR < 0 means convex, sphR ~ infinity means flat
         robot_pitch ... center-to-center distance between robots within the raft
-        robot_patrol_radius ... reach of fi
+        robot_max_extent ... local to a robot, max radius of any mechanical part at full extension
         '''
         global _raft_id_counter
         self.id = _raft_id_counter
@@ -43,6 +43,7 @@ class Raft:
         self.r2z = r2z if r2z else lambda x: np.zeros(np.shape(x))
         self.sphR = sphR
         self.robot_pitch = robot_pitch
+        self.robot_max_extent = robot_max_extent
 
     @property
     def r(self):
@@ -75,17 +76,17 @@ class Raft:
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
-        poly = profile.polygon3D + [0, 0, self.focus_offset]
-        array = self._place_poly(poly)
-        return array.tolist()
+        poly = np.array(profile.polygon3D) + [0, 0, self.focus_offset]
+        placed = self._place_poly(poly)
+        return placed.tolist()
 
     @property
     def rear_poly(self):
         '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
         connectors bulkhead, etc)'''
         poly = np.array(self.outer_profile.polygon3D) + [0, 0, self.focus_offset - self.outer_profile.RL]
-        array = self._place_poly(poly)
-        return array.tolist()
+        placed = self._place_poly(poly)
+        return placed.tolist()
 
     @property
     def poly3d(self):
@@ -121,6 +122,7 @@ class Raft:
         '''
         points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
         points2D = np.transpose(points2D)
+        n_pts = len(points2D[0])
         local_r = np.hypot(points2D[0], points2D[1])
         if np.isneginf(self.sphR) or np.isposinf(self.sphR):
             dz = np.zeros(np.shape(local_r))
@@ -129,17 +131,20 @@ class Raft:
         points3D = np.transpose(np.append(points2D, [dz], axis=0))
         if global_coords:
             points3D = self._place_poly(points3D)
+            # 2022-11-30 - JHS - Current design assumption is we will  
+            # keep all robot center axes parallel to the raft.
             angles = np.ones_like(points3D) * [self.precession, self.nutation, self.spin]
         else:
             angles = np.zeros_like(points3D)
-        data = {'idx': np.arange(len(points3D[0])),
-                'x': points3D[0],
-                'y': points3D[1],
-                'z': points3D[2],
-                'precession': angles[0],
-                'nutation': angles[1],
-                'spin': angles[2],
-                'intersects_perimeter': ,
+        intersects_perimeter = [self.instr_profile.circle_intersects(points2D[0,i], points2D[1,i], self.robot_max_extent) for i in range(n_pts)]
+        data = {'idx': np.arange(n_pts),
+                'x': points3D[:,0],
+                'y': points3D[:,1],
+                'z': points3D[:,2],
+                'precession': angles[:,0],
+                'nutation': angles[:,1],
+                'spin': angles[:,2],
+                'intersects_perimeter': intersects_perimeter,
                 }
         table = Table(data)
         return table
@@ -149,8 +154,7 @@ class Raft:
         '''Nx3 list of (precession, nutation, spin) coordinates of the individual
         robots on the raft. These are in the global coordinate system of the focal
         plane.'''
-        # 2022-11-30 - JHS - Current design assumption is we will keep all robot
-        # center axes parallel to the raft.
+       
         points3D = self.robot_centers
         
         return angles
@@ -334,10 +338,20 @@ class RaftProfile:
         crop_poly = np.array(self.polygon2D)
         crop_path = Path(crop_poly, closed=False)
         included = crop_path.contains_points(pattern)
-        pattern = pattern[:, included]
-
+        pattern = pattern[included, :]
         return pattern.tolist()
     
+    def circle_intersects(self, x, y, r, resolution=32):
+        '''Returns boolean whether a circle of given radius intersects the profile
+        polygon. Number of segments used to represent the circle internally can be
+        set with arg resolution.'''
+        perimeter = self.polygon2D
+        perimeter += [perimeter[0]]
+        theta = np.linspace(0, np.pi*2, resolution + 1)
+        circle_x = x + r*np.cos(theta)
+        circle_y = y + r*np.sin(theta)
+        collisions = Raft.polygons_collide(perimeter, np.transpose([circle_x, circle_y]))
+        return collisions
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -346,13 +360,16 @@ if __name__ == "__main__":
     pattern2D = raft.instr_profile.generate_robot_pattern()
     print('pattern of robot centers (2D):\n', pattern2D)
     print('n_robots_in_pattern', len(pattern2D[0]))
-    pattern3D = raft.robot_centers
+    robots = raft.generate_robots_table(global_coords=True)
+    pattern3D = np.array([robots['x'].data, robots['y'].data, robots['z'].data])
     print('pattern of robot centers (3D):\n', pattern3D)      
     outline = np.transpose(raft.front_poly(instr=True))
     outline_x = outline[0].tolist() + [outline[0, 0]]
     outline_y = outline[1].tolist() + [outline[1, 0]]
     plt.plot(outline_x, outline_y, 'k-')
-    plt.plot(np.transpose(pattern2D)[0], np.transpose(pattern2D)[1], 'bo')
+    plt.plot(robots['x'], robots['y'], 'bo')
+    perimeter = robots[robots['intersects_perimeter']]
+    plt.plot(perimeter['x'], perimeter['y'], 'rx')
     plt.axis('equal')
     plt.show()
     pass
