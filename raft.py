@@ -118,7 +118,7 @@ class Raft:
             idx ... integer id, locally unique within this raft
             x, y, z ... cartesian coordinates of individual robot centers
             precession, nutation, spin ... angle of robot central axes
-            intersects_perimeter ... whether each robot's patrol disk intersects outline of raft
+            intersects perimeter ... whether each robot's patrol disk intersects outline of raft
         '''
         points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
         points2D = np.transpose(points2D)
@@ -127,7 +127,8 @@ class Raft:
         if np.isneginf(self.sphR) or np.isposinf(self.sphR):
             dz = np.zeros(np.shape(local_r))
         else:
-            dz = self.sphR - (self.sphR**2 - local_r**2)**0.5
+            sign = np.sign(self.sphR)
+            dz = self.sphR - sign*(self.sphR**2 - local_r**2)**0.5
         points3D = np.transpose(np.append(points2D, [dz], axis=0))
         if global_coords:
             points3D = self._place_poly(points3D)
@@ -144,7 +145,7 @@ class Raft:
                 'precession': angles[:,0],
                 'nutation': angles[:,1],
                 'spin': angles[:,2],
-                'intersects_perimeter': intersects_perimeter,
+                'intersects perimeter': intersects_perimeter,
                 }
         table = Table(data)
         return table
@@ -368,7 +369,7 @@ if __name__ == "__main__":
     outline_y = outline[1].tolist() + [outline[1, 0]]
     plt.plot(outline_x, outline_y, 'k-')
     plt.plot(robots['x'], robots['y'], 'bo')
-    perimeter = robots[robots['intersects_perimeter']]
+    perimeter = robots[robots['intersects perimeter']]
     plt.plot(perimeter['x'], perimeter['y'], 'rx')
     plt.axis('equal')
     plt.show()

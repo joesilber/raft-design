@@ -438,24 +438,15 @@ total_instr_area_ratio = total_instr_area / surface_area_within_vigR
 logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
 # table of individual robot center positions
-robot_table_headers = ['robot idx', 'raft loc id', 'robot loc id', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
-robots = Table(names=robot_table_headers)
+robot_table_headers = ['global robot idx', 'raft idx', 'local robot idx', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
 raft_robot_tables = []
-for raft in rafts:
-    points = np.transpose(raft.robot_centers)
-    angles = np.transpose(raft.robot_angles)
-    data = {'x': points[0],
-            'y': points[1],
-            'z': points[2],
-            'precession': angles[0],
-            'nutation': angles[1],
-            'spin': angles[2],
-            'raft loc id': raft.id * np.ones_like(points[0]),
-            'robot loc id': np.arange(len(points[0]))
-            }
-    raft_robot_tables += [Table(data)]
+for raft in rafts2:
+    these_robots = raft.generate_robots_table(global_coords=True)
+    these_robots.rename_column('idx', 'local robot idx')
+    these_robots['raft idx'] = raft.id
+    raft_robot_tables += [these_robots]
 robots = vstack(raft_robot_tables)
-robots['robot idx'] = np.arange(len(robots))
+robots['global robot idx'] = np.arange(len(robots))
 robots = robots[robot_table_headers]
 
 # file names and plot titles
@@ -468,11 +459,14 @@ typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_p
            f', MaxInstrumentedVertexRadius: {overall_max_instr_vertex_radius:.2f} mm' \
            f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
            f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
-filename = basename + '.csv'
+rafts_filename = f'{basename}_raftdata.csv'
+robots_filename = f'{basename}_robotdata.csv'
 
-# save table
-t2.write(filename, overwrite=True)
-logger.info(f'Saved table to {os.path.abspath(filename)}')
+# save tables
+t2.write(rafts_filename, overwrite=True)
+logger.info(f'Saved rafts data table to {os.path.abspath(rafts_filename)}')
+robots.write(robots_filename, overwrite=True)
+logger.info(f'Saved robots data table to {os.path.abspath(robots_filename)}')
 
 # print out more statistics
 print_stats(t2, gap_mag_keys + ['radius'])
@@ -575,7 +569,30 @@ plt.suptitle(typtitle)
 filename = f'{basename}_2D.png'
 filepath = os.path.join(logdir, filename)
 plt.savefig(filepath)
-logger.info(f'Saved 2D plot to {filepath}')
+logger.info(f'Saved 2D rafts plot to {filepath}')
+
+# robots plot
+plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
+interiors = robots[np.logical_not(robots['intersects perimeter'])]
+perimeters = robots[robots['intersects perimeter']]
+plt.subplot(2, 2, (1, 3))
+plt.plot(interiors['x'], interiors['y'], 'b+', label='interior', markersize=9, fillstyle='none')
+plt.plot(perimeters['x'], perimeters['y'], 'k+', label='perimeter', markersize=9, fillstyle='none')
+plt.xlabel('x (mm)')
+plt.ylabel('y (mm)')
+plt.legend(loc='upper left')
+plt.axis('equal')
+for subplot, abscissa in {2: 'x', 4: 'y'}.items():
+    plt.subplot(2, 2, subplot)
+    plt.plot(interiors[abscissa], interiors['z'], 'b+', markersize=4)
+    plt.plot(perimeters[abscissa], perimeters['z'], 'k+', markersize=4)
+    plt.xlabel(f'{abscissa} (mm)')
+    plt.ylabel('z (mm)')
+plt.suptitle(typtitle)
+filename = f'{basename}_robots.png'
+filepath = os.path.join(logdir, filename)
+plt.savefig(filepath)
+logger.info(f'Saved robots plot to {filepath}')
 
 plt.close('all')
 logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')
