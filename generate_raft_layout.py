@@ -70,7 +70,8 @@ parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm,
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
-parser.add_argument('-p', '--robot_pitch', type=float, default=6.2, help='mm, center-to-center distance between robot centers within the raft')
+parser.add_argument('-rp', '--robot_pitch', type=float, default=6.2, help='mm, center-to-center distance between robot centers within the raft')
+parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -281,6 +282,7 @@ for row in t:
                 r2z=R2Z,
                 sphR=sphR*(-1 if is_convex else +1),
                 robot_pitch=userargs.robot_pitch,
+                robot_max_extent=userargs.robot_max_extent,
                 )
     rafts += [raft]
     row['id'] = raft.id
@@ -588,7 +590,8 @@ for subplot, abscissa in {2: 'x', 4: 'y'}.items():
     plt.plot(perimeters[abscissa], perimeters['z'], 'k+', markersize=4)
     plt.xlabel(f'{abscissa} (mm)')
     plt.ylabel('z (mm)')
-plt.suptitle(typtitle)
+title = typtitle + f'\nNumRaftPerimeterRobots: {len(perimeters)}'
+plt.suptitle(title)
 filename = f'{basename}_robots.png'
 filepath = os.path.join(logdir, filename)
 plt.savefig(filepath)

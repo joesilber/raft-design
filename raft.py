@@ -22,12 +22,12 @@ class Raft:
         focus_offset ... [mm] focus shift of raft, along z-axis local to the raft
         outer_profile ... RaftProfile instance, defining outer geometry
         instr_profile ... RaftProfile instance, defining instrumented geometry
-        r2nut ... function for converting focal plane radius to nutation angle of raft
-        r2z ... function for converting focal plane radius to z position of raft
-        sphR ... spherical radius which approximates focal surface; sign convention is:
+        r2nut ... [mm --> mm] function for converting focal plane radius to nutation angle of raft
+        r2z ... [mm --> mm] function for converting focal plane radius to z position of raft
+        sphR ... [mm] spherical radius which approximates focal surface; sign convention is:
                  sphR > 0 means concave, sphR < 0 means convex, sphR ~ infinity means flat
-        robot_pitch ... center-to-center distance between robots within the raft
-        robot_max_extent ... local to a robot, max radius of any mechanical part at full extension
+        robot_pitch ... [mm] center-to-center distance between robots within the raft
+        robot_max_extent ... [mm] local to a robot, max radius of any mechanical part at full extension
         '''
         global _raft_id_counter
         self.id = _raft_id_counter
