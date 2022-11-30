@@ -193,7 +193,7 @@ class Raft:
         (0, 0, 0) will land on the focal surface.'''
         rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
         rotated = rot.apply(poly)
-        translated = rotated + [self.x, self.y, self.r2z(self.r)]
+        translated = rotated + [self.x, self.y, self.z]
         return translated
 
     @staticmethod

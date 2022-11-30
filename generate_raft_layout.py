@@ -147,6 +147,7 @@ result = optimize.least_squares(fun=calc_sphR_err, x0=z_guess)
 z_ctr = float(result.x)
 sphR = abs(z_ctr)
 is_convex = np.sign(z_ctr) < 1  # convention where +z is toward the fiber tips
+sphR_sign = -1 if is_convex else +1
 logger.info(f'Best-fit sphere radius = {sphR:.3f} mm, is_convex = {is_convex}')
 
 # single raft profile --> outer geometry
@@ -189,8 +190,8 @@ logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon2D}')
 # offset to average out the defocus of all the robots on a raft
 above_below_equal_area_radius = (instr_area_per_raft/2 / math.pi)**0.5  # i.e. for a circle centered on raft that contains same area inside as in the rest of the raft
 avg_focus_offset = above_below_equal_area_radius**2 / sphR / 2
-avg_focus_offset *= -1 if is_convex else +1
-logger.info(f'Focus offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
+avg_focus_offset *= +1 if is_convex else -1
+logger.info(f'Raft focus z offset (to average out the defocus of all the robots on a raft) = {avg_focus_offset:.4f} mm')
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
@@ -280,7 +281,7 @@ for row in t:
                 instr_profile=instr_profile,
                 r2nut=R2NUT,
                 r2z=R2Z,
-                sphR=sphR*(-1 if is_convex else +1),
+                sphR=sphR*sphR_sign,
                 robot_pitch=userargs.robot_pitch,
                 robot_max_extent=userargs.robot_max_extent,
                 )
@@ -450,6 +451,19 @@ for raft in rafts2:
 robots = vstack(raft_robot_tables)
 robots['global robot idx'] = np.arange(len(robots))
 robots = robots[robot_table_headers]
+r_robots = np.hypot(robots['x'], robots['y'])
+ideal_asphere_z = R2Z(r_robots)
+bestfit_sphere_z = sphR_sign*(sphR - (sphR**2 - r_robots**2)**0.5)
+z_error_bestfitsphere_wrt_asphere = bestfit_sphere_z - ideal_asphere_z
+z_error_robots_wrt_bestfitsphere = robots['z'] - bestfit_sphere_z
+z_error_raftcenters_wrt_bestfitsphere = t2['z'] - sphR_sign*(sphR - (sphR**2 - t2['radius']**2)**0.5)
+z_error_raftcenters_wrt_asphere = t2['z'] - R2Z(t2['radius'])
+robots['z error'] = robots['z'] - ideal_asphere_z
+logger.info(f'Generated table of {len(robots)} individual robot positions.')
+logger.info(f'Max z error of {len(robots)} robot center positions = {max(robots["z error"]):.3f} mm')
+logger.info(f'Min z error of {len(robots)} robot center positions = {min(robots["z error"]):.3f} mm')
+logger.info(f'(For the best-fit sphere radius {sphR:.1f} mm, max departure from asphere = {max(z_error_bestfitsphere_wrt_asphere):.3f} mm)')
+logger.info(f'(For the best-fit sphere radius {sphR:.1f} mm, min departure from asphere = {min(z_error_bestfitsphere_wrt_asphere):.3f} mm)')
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
