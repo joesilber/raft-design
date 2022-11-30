@@ -19,6 +19,23 @@
                 // "--help",
                 ],
         },
+
+        {
+            "name": "generate - DESI2 - 11,250 - 1/6 - ignore CRD",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "1",
+                "-r", "418.0",
+                "-g", "0.4",
+                "-l", "186",
+                "-w", "60",
+                "--ignore_chief_ray_dev"
+                // "--help",
+                ],
+        },
         
         {
             "name": "generate - DESI2 - 11,250 - full",

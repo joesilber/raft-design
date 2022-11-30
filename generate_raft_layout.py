@@ -72,6 +72,7 @@ parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle 
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-rp', '--robot_pitch', type=float, default=6.2, help='mm, center-to-center distance between robot centers within the raft')
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
+parser.add_argument('-ig', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -95,6 +96,7 @@ focsurf = focal_surfaces[focsurf_name]
 logger.info(f'Focal surface name: {focsurf_name}')
 logger.info(f'Focal surface parameters: {focsurf}')
 CRD2R_undefined = False
+force_CRD_to_zero = userargs.ignore_chief_ray_dev
 if all(label in focsurf for label in {'Z', 'CRD'}):
     R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
     R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
@@ -104,11 +106,13 @@ elif 'file' in focsurf:
     if 'CRD' in t:
         R2CRD = interp1d(t['R'], t['CRD'])
     else:
-        R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
-        CRD2R_undefined = True
-        logger.warning('no chief ray deviation defined, letting CRD(R)=0')
+        force_CRD_to_zero = True
 else:
     assert False, 'unrecognized geometry input data'
+if force_CRD_to_zero:
+    R2CRD = Polynomial([0])  # in the absence of chief ray deviation information
+    CRD2R_undefined = True
+    logger.warning('no chief ray deviation defined, letting CRD(R)=0')
 vigR = focsurf['vigR']  # should be a scalar
 if 'z_sign' in focsurf:
     _R2Z = R2Z
