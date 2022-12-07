@@ -533,7 +533,8 @@ logger.info(f'Instrumented area ratio w.r.t. tile-able hexagon = (instrumented a
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max() if has_shield_wall else max(robots['r']) + userargs.robot_reach
-basename = f'{timestamp}_{focsurf_name}_raftlen{outer_profile.RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
+shieldtext = 'shielded' if has_shield_wall else 'noshield'
+basename = f'{timestamp}_{focsurf_name}_raftlen{outer_profile.RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}_{shieldtext}'
 typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_profile.RL:.1f} mm' \
            f', NumRafts: {n_rafts}, NumRobots: {n_robots}' \
            f'\nMinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
@@ -693,7 +694,7 @@ if not has_shield_wall:
               f'\n\nSingle and double coverage of focal plane, for the NO SHIELD WALL case.' +
               f'\nTotal area covered by at least one fiber = {total_area_covered_at_least_once_m:.4f} m^2' +
               f'\nTotal patrolled area (i.e. counting overlap) = {total_grids_patrolled_m:.4f} m^2')
-    filename = f'{basename}_noshieldcoverage.png'
+    filename = f'{basename}_coverage.png'
     filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
     logger.info(f'Saved no-shield area coverage plot to {filepath}')
