@@ -331,11 +331,37 @@ class RaftProfile:
         poly3D = np.column_stack((poly2D, [0]*np.shape(poly2D)[0]))
         return poly3D.tolist()
 
-    def generate_robot_pattern(self, pitch=6.2):
+    def generate_robot_pattern(self, pitch=6.2, flip='optimal'):
         '''Produce 2D pattern of robots that fit within the polygon.
           INPUTS:   pitch ... [mm] center-to-center distance between robots within the raft
+                    flip ... valid arguments:
+                                'optimal' ... choose the best option automatically
+                                'default' ... pattern based on nominal 75-robot raft design circa Dec 2022
+                                'vertical' ... mirror the default pattern vertically
+                                'horizontal' ... mirror the default pattern horizontally
           OUTPUTS:  Nx2 list of (x, y) positions
         '''
+        if flip == 'optimal':
+            patterns = {key: self.generate_robot_pattern(pitch=pitch, flip=key) for key in ['default', 'horizontal', 'vertical']}
+            best_pattern_dist = -np.inf
+            best_pattern_key = ''
+            profile_polygon = self.polygon2D
+            for key, pattern in patterns.items():
+                min_dist_robot_ctr_to_profile = np.inf
+                np_pattern = np.array(pattern)
+                for i in range(len(profile_polygon)):
+                    vertex1 = profile_polygon[i]
+                    vertex2 = profile_polygon[i+1] if i < (len(profile_polygon) - 1) else profile_polygon[0]
+                    numerator = np.abs((vertex2[0] - vertex1[0])*(vertex1[1] - np_pattern[:,1]) - (vertex1[0] - np_pattern[:,0])*(vertex2[1] - vertex1[1]))
+                    denominator = ((vertex2[0] - vertex1[0])**2 + (vertex2[1] - vertex1[1])**2)**0.5
+                    point_distances_to_segments = numerator / denominator
+                    this_min_dist = min(point_distances_to_segments)
+                    min_dist_robot_ctr_to_profile = min(min_dist_robot_ctr_to_profile, this_min_dist)
+                if min_dist_robot_ctr_to_profile > best_pattern_dist:
+                    best_pattern_key = key
+                    best_pattern_dist = min_dist_robot_ctr_to_profile
+            return patterns[best_pattern_key]
+
         # square-ish local robot pattern
         overwidth = self.RB * 2/3
         overwidth_count = math.ceil(overwidth / pitch)
@@ -357,6 +383,17 @@ class RaftProfile:
         crop_path = Path(crop_poly, closed=False)
         included = crop_path.contains_points(pattern)
         pattern = pattern[included, :]
+        
+        # mirroring cases
+        if flip == 'default':
+            pass
+        elif flip == 'vertical':
+            pattern[:, 1] *= -1
+        elif flip == 'horizontal':
+            pattern[:, 0] *= -1
+        else:
+            assert False, f'did not recognize flip argument "{flip}"'
+
         return pattern.tolist()
     
     def circle_intersects(self, x, y, r, resolution=32):
@@ -374,7 +411,12 @@ class RaftProfile:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    raft = Raft(sphR=4000)
+    raft = Raft(sphR=4478.677)
+    
+    # trillium test case
+    #trillium_profile = RaftProfile(tri_base=13.821, length=216., chamfer=2.2)
+    #raft = Raft(sphR=4478.677, outer_profile=trillium_profile, instr_profile=trillium_profile)
+
     pattern2D = raft.instr_profile.generate_robot_pattern()
     print('pattern of robot centers (2D):\n', pattern2D)
     print('n_robots_in_pattern', len(pattern2D[0]))
