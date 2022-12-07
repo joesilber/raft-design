@@ -522,22 +522,26 @@ instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
 total_instr_area = instr_area_per_raft * n_rafts
 surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
 total_instr_area_ratio = total_instr_area / surface_area_within_vigR
+unvignetted_hexagonal_tile_area_for_full_fp = 3/2 * 3**0.5 * vigR**2
+total_instr_area_ratio_for_hex_tile = total_instr_area / (userargs.wedge / 360) / unvignetted_hexagonal_tile_area_for_full_fp
 logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
 logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
 logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
 logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
-logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
+logger.info(f'Instrumented area ratio w.r.t. full unvignetted circle = (instrumented area) / (area within vignette circle) = {total_instr_area_ratio:.3f}')
+logger.info(f'Instrumented area ratio w.r.t. tile-able hexagon = (instrumented area) / (area within hexagon circumscribed by vignette circle) = {total_instr_area_ratio_for_hex_tile:.3f}')
 
 # file names and plot titles
-overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
+overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max() if has_shield_wall else max(robots['r']) + userargs.robot_reach
 basename = f'{timestamp}_{focsurf_name}_raftlen{outer_profile.RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}'
 typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_profile.RL:.1f} mm' \
-           f'\nNumRafts: {n_rafts}, NumRobots: {n_robots}' \
-           f', MinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
-           f'\nMaxMechanicalVertexRadius: {t2["max_front_vertex_radius"].max():.2f} mm'\
+           f', NumRafts: {n_rafts}, NumRobots: {n_robots}' \
+           f'\nMinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
+           f', MaxMechanicalVertexRadius: {t2["max_front_vertex_radius"].max():.2f} mm'\
            f', MaxInstrumentedVertexRadius: {overall_max_instr_vertex_radius:.2f} mm' \
-           f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.3f} m^2' \
-           f', InstrArea/UnvignArea: {total_instr_area_ratio:.3f}'
+           f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.4f} m^2' \
+           f', InstrArea/UnvignCircleArea: {total_instr_area_ratio:.3f}' \
+           f', InstrArea/UnvignHexTileArea: {total_instr_area_ratio_for_hex_tile:.3f}'
 rafts_filename = f'{basename}_raftdata.csv'
 robots_filename = f'{basename}_robotdata.csv'
 
@@ -685,9 +689,10 @@ if not has_shield_wall:
              (max(robots['x']) + userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing)
     plt.ylim((min(robots['y']) - userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing,
              (max(robots['y']) + userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing)
-    plt.title(f'Single and double coverage of focal plane, for the NO SHIELD WALL case.' +
-              f'\nTotal area covered by at least one fiber = {total_area_covered_at_least_once_m:.3f} m^2' +
-              f'\nTotal patrolled area (i.e. counting overlap) = {total_grids_patrolled_m:.3f} m^2')
+    plt.title(typtitle +
+              f'\n\nSingle and double coverage of focal plane, for the NO SHIELD WALL case.' +
+              f'\nTotal area covered by at least one fiber = {total_area_covered_at_least_once_m:.4f} m^2' +
+              f'\nTotal patrolled area (i.e. counting overlap) = {total_grids_patrolled_m:.4f} m^2')
     filename = f'{basename}_noshieldcoverage.png'
     filepath = os.path.join(logdir, filename)
     plt.savefig(filepath)
