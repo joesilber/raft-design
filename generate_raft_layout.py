@@ -67,12 +67,13 @@ parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, 
 parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=2.5, help='mm, chamfer at triangle tips')
 parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm, chamfer to instrumented area of raft')
-parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft')
+parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft (argue 0 to have no wall)')
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
 parser.add_argument('-rp', '--robot_pitch', type=float, default=6.2, help='mm, center-to-center distance between robot centers within the raft')
+parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, local to a robot, max patrol radius of fiber at full extension')
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
-parser.add_argument('-ig', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
+parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -89,6 +90,9 @@ simple_logger.assert2(all(isinstance(x, dict) for x in user_transforms), 'not al
 simple_logger.assert2(all(all(key in transform_template for key in x) for x in user_transforms), f'not all keys recognized in transforms input. valid keys are {transform_template.keys()}')
 simple_logger.assert2(all(isinstance(x['id'], int) and x['id'] >= 0 for x in user_transforms), 'not all raft ids in transforms input are ints >= 0')
 simple_logger.assert2(all(all(isinstance(val, (int, float)) for key, val in x.items() if key != 'id') for x in user_transforms), 'not all transform values are ints or floats')
+
+# other input validations
+assert userargs.instr_wall >= 0, f'negative thickness ({userargs.instr_wall} shield wall is an undefined case'
 
 # set up geometry functions
 focsurf_name = focsurfs_index[userargs.focal_surface_number]
@@ -180,17 +184,6 @@ rearR_to_frontR = interp1d(r2, r)
 frontR_to_rearS = interp1d(r, s2)
 frontR_to_rearR = interp1d(r, r2)
 
-# single raft profile --> instrumented area geometry
-instr_profile = RaftProfile(tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
-                            length=userargs.raft_length,
-                            chamfer=userargs.instr_chamfer - 2 * userargs.instr_wall,
-                            )
-instr_chamfer_area = instr_profile.CB**2 * 3**.5 / 4
-instr_triangle_area = instr_profile.RB**2 * 3**.5 / 4
-instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
-logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
-logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon2D}')
-
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
 spacing_x = outer_profile.RB + userargs.raft_gap * math.sqrt(3)
@@ -257,6 +250,29 @@ if not_full_circle:
 keep = np.logical_not(remove)
 for key in grid:
     grid[key] = np.array(grid[key])[keep]
+
+# instrumented area calca
+has_shield_wall = userargs.instr_wall != 0
+if has_shield_wall:
+    instr_profile = RaftProfile(tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
+                                length=userargs.raft_length,
+                                chamfer=userargs.instr_chamfer - 2 * userargs.instr_wall,
+                                )
+    instr_chamfer_area = instr_profile.CB**2 * 3**.5 / 4
+    instr_triangle_area = instr_profile.RB**2 * 3**.5 / 4
+    instr_area_per_raft = instr_triangle_area - 3 * instr_chamfer_area
+    logger.info(f'Raft has shield wall of thickness = {userargs.instr_wall} mm')
+    logger.info(f'Instrumented area for a single raft = {instr_area_per_raft:.3f} mm^2')
+    logger.info(f'Raft\'s instrumented profile polygon: {instr_profile.polygon2D}')
+else:
+    # This is a rather special (and important) case. Without a mechanical shield
+    # around the perimeter, the fibers can patrol outside the raft outline. Area
+    # coverage calculation is more complicated than for an isolated single raft.
+    # The area calculation is performed later in this script, *after* the robot
+    # positions have been tabulated. Here we just set some nominal "instr_profile"
+    # for congruity wiht the other case.
+    logger.info(f'Raft has no shield wall.')
+    instr_profile = outer_profile
 
 # table structure for raft positions and orientations
 t = Table(grid)
@@ -424,19 +440,6 @@ logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all f
 t2_str = '\n' + '\n'.join(t2.pformat_all())
 logger.info(t2_str)
 
-# instrumented area calcs
-avg_spacing_x = outer_profile.RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
-avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
-logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
-instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
-logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
-total_instr_area = instr_area_per_raft * n_rafts
-logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
-surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
-logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
-total_instr_area_ratio = total_instr_area / surface_area_within_vigR
-logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
-
 # table of individual robot center positions
 robot_table_headers = ['global robot idx', 'raft idx', 'local robot idx', 'r', 'x', 'y', 'z', 'precession', 'nutation', 'spin', 'intersects perimeter']
 raft_robot_tables = []
@@ -462,6 +465,66 @@ for key, unit in {'z error': 'mm', 'chief ray error': 'deg'}.items():
     logger.info(f'{prefix} mean {key} = {robots[key].mean():.3f} {unit}')
     logger.info(f'{prefix} median {key} = {np.median(robots[key]):.3f} {unit}')
     logger.info(f'{prefix} rms {key} = {(np.sum(robots[key]**2)/len(robots))**0.5:.3f} {unit}')
+
+# instrumented area calcs for the NO SHIELD case
+# (shield case was already calculated above, prior to raft objects instantiation)
+if not has_shield_wall:
+    # calculation below is based on script I had made in Feb 2020 for DESI-5513-v1
+
+    # collect positioner centers in flatxy coordinates
+    bots_s = R2S(robots['r'])
+    bots_q = np.arctan2(robots['y'], robots['x'])
+    bots_flatx = bots_s * np.cos(bots_q)
+    bots_flaty = bots_s * np.sin(bots_q)
+    centers = np.transpose([bots_flatx, bots_flaty]).tolist()
+
+    # set up area evaluation grid
+    areagrid_spacing = 0.3 # mm, edge length of grid unit
+    areagrid_limit = limit_radius
+    areagrid_max_mm = areagrid_limit
+    areagrid_min_mm = -areagrid_limit
+    areagrid_mm = np.linspace(areagrid_min_mm, areagrid_max_mm, math.ceil((areagrid_max_mm - areagrid_min_mm)/areagrid_spacing) + 1).tolist()
+    areagrid = [[0]*len(areagrid_mm) for x in range(len(areagrid_mm))]
+    def get_grid_idx(continuous_value_mm):
+        translated = continuous_value_mm - areagrid_min_mm
+        scaled = translated / areagrid_spacing
+        rounded = int(round(scaled))
+        return rounded
+
+    # fill the grid with coverage
+    rmax = userargs.robot_reach
+    ndim = range(2)
+    for center in centers:
+        center_idx = [get_grid_idx(center[i]) for i in ndim]
+        box_min_idx = [get_grid_idx(center[i] - rmax) for i in ndim]
+        box_max_idx = [get_grid_idx(center[i] + rmax) for i in ndim]
+        box_idxs = [[j for j in range(box_min_idx[i], box_max_idx[i] + 1)] for i in ndim]
+        for i in box_idxs[0]:
+            for j in box_idxs[1]:
+                xy_mm = [areagrid_mm[i], areagrid_mm[j]]
+                test_r = sum((xy_mm[k] - center[k])**2 for k in ndim)**0.5
+                if test_r <= rmax:
+                    areagrid[i][j] += 1
+
+    # calculate total covered area by at least one fiber
+    total_grids_covered = np.sum(np.where(areagrid, 1, 0))
+    total_area_covered_at_least_once_mm = total_grids_covered * areagrid_spacing**2
+    total_area_covered_at_least_once_m = total_area_covered_at_least_once_mm * 0.001**2
+    total_grids_patrolled = np.sum(areagrid) # i.e. including overlap
+    total_grids_patrolled_mm = total_grids_patrolled * areagrid_spacing**2
+    total_grids_patrolled_m = total_grids_patrolled_mm * 0.001**2
+
+avg_spacing_x = outer_profile.RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
+avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
+logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
+instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
+logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
+total_instr_area = instr_area_per_raft * n_rafts
+logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
+surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
+logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
+total_instr_area_ratio = total_instr_area / surface_area_within_vigR
+logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
 # file names and plot titles
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max()
@@ -608,6 +671,21 @@ filename = f'{basename}_robots.png'
 filepath = os.path.join(logdir, filename)
 plt.savefig(filepath)
 logger.info(f'Saved robots plot to {filepath}')
+
+# area coverage plot (no shield case)
+if not has_shield_wall:
+    plt.figure(figsize=(16, 8), dpi=200, tight_layout=True)
+    ax = plt.contourf(areagrid, levels=np.max(areagrid))
+    plt.axis('square')
+    plt.xlabel('')
+    plt.axis('off')
+    plt.title(f'Single and double coverage of focal plane, for the NO SHIELD WALL case.' +
+              f'\nTotal area covered by at least one fiber = {total_area_covered_at_least_once_m:.3f} m^2' +
+              f'\nTotal patrolled area (i.e. counting overlap) = {total_grids_patrolled_m:.3f} m^2')
+    filename = f'{basename}_noshieldcoverage.png'
+    filepath = os.path.join(logdir, filename)
+    plt.savefig(filepath)
+    logger.info(f'Saved no-shield area coverage plot to {filepath}')
 
 plt.close('all')
 logger.info(f'Completed in {time.perf_counter() - start_time:.1f} sec')

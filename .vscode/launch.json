@@ -66,6 +66,7 @@
                 "-l", "216", // approx 166 mechanical + 50 electrical (contacts? connectors?)
                 "-w", "36",
                 "-c", "2.2",
+                "-iw", "0.0",
                 "-b", "13.821",
                 // "--help",
                 ],
