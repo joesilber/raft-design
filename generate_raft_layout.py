@@ -504,7 +504,7 @@ if not has_shield_wall:
                 xy_mm = [areagrid_mm[i], areagrid_mm[j]]
                 test_r = sum((xy_mm[k] - center[k])**2 for k in ndim)**0.5
                 if test_r <= rmax:
-                    areagrid[i][j] += 1
+                    areagrid[j][i] += 1
 
     # calculate total covered area by at least one fiber
     total_grids_covered = np.sum(np.where(areagrid, 1, 0))
@@ -513,17 +513,19 @@ if not has_shield_wall:
     total_grids_patrolled = np.sum(areagrid) # i.e. including overlap
     total_grids_patrolled_mm = total_grids_patrolled * areagrid_spacing**2
     total_grids_patrolled_m = total_grids_patrolled_mm * 0.001**2
+    instr_area_per_raft = total_area_covered_at_least_once_mm / n_rafts
 
+# area summary calcs
 avg_spacing_x = outer_profile.RB + np.mean([t2['min_gap_front'].mean(), t2['max_gap_front'].mean()]) * math.sqrt(3)
 avg_consumed_area_per_raft = avg_spacing_x**2 * 3**.5 / 4
-logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
 instr_area_efficiency = instr_area_per_raft / avg_consumed_area_per_raft
-logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
 total_instr_area = instr_area_per_raft * n_rafts
-logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
 surface_area_within_vigR = math.pi * R2S(vigR)**2 * userargs.wedge / 360
-logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
 total_instr_area_ratio = total_instr_area / surface_area_within_vigR
+logger.info(f'Avg area consumed on focal surface per raft = {avg_consumed_area_per_raft:.3f} mm^2')
+logger.info(f'Instrumented area efficiency (local per raft) = {instr_area_efficiency * 100:.1f}%')
+logger.info(f'Total instrumented area (including outside vignette radius) = {total_instr_area:.1f} mm^2')
+logger.info(f'Surface area within vignette radius = {surface_area_within_vigR:.1f} mm^2')
 logger.info(f'Instrumented area ratio = (instrumented area) / (area within vignette) = {total_instr_area_ratio:.3f}')
 
 # file names and plot titles
@@ -679,6 +681,10 @@ if not has_shield_wall:
     plt.axis('square')
     plt.xlabel('')
     plt.axis('off')
+    plt.xlim((min(robots['x']) - userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing,
+             (max(robots['x']) + userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing)
+    plt.ylim((min(robots['y']) - userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing,
+             (max(robots['y']) + userargs.robot_pitch - areagrid_min_mm)/areagrid_spacing)
     plt.title(f'Single and double coverage of focal plane, for the NO SHIELD WALL case.' +
               f'\nTotal area covered by at least one fiber = {total_area_covered_at_least_once_m:.3f} m^2' +
               f'\nTotal patrolled area (i.e. counting overlap) = {total_grids_patrolled_m:.3f} m^2')
