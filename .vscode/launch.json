@@ -33,7 +33,6 @@
                 "-l", "186",
                 "-w", "60",
                 "--ignore_chief_ray_dev"
-                // "--help",
                 ],
         },
         
@@ -49,10 +48,25 @@
                 "-g", "0.4",
                 "-l", "186",
                 "-w", "360",
-                // "--help",
                 ],
         },
 
+        {
+            "name": "generate - DESI2 - 11,250 - 1/6 - noshield",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "1",
+                "-r", "418.0",
+                "-g", "0.4",
+                "-l", "186",
+                "-w", "60",
+                "-iw", "0.0",
+                ],
+        },
+        
         {
             "name": "generate - DESI2 - trillium - petal",
             "type": "python",
@@ -68,7 +82,6 @@
                 "-c", "2.2",
                 "-iw", "0.0",
                 "-b", "13.821",
-                // "--help",
                 ],
         },
 
