@@ -74,6 +74,8 @@ parser.add_argument('-rp', '--robot_pitch', type=float, default=6.2, help='mm, c
 parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, local to a robot, max patrol radius of fiber at full extension')
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
 parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
+parser.add_argument('-sx', '--spacing_adjust_x', type=float, default=0.0, help='mm, change nominal x-spacing between rafts by this amount')
+parser.add_argument('-sy', '--spacing_adjust_y', type=float, default=0.0, help='mm, change nominal y-spacing between rafts by this amount')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -186,8 +188,9 @@ frontR_to_rearR = interp1d(r, r2)
 
 # generate grid of raft center points
 # (based on two sets of staggered equilateral triangles)
-spacing_x = outer_profile.RB + userargs.raft_gap * math.sqrt(3)
-spacing_y = spacing_x * math.sqrt(3)/2
+spacing_x = outer_profile.RB + userargs.raft_gap * math.sqrt(3) + userargs.spacing_adjust_x
+spacing_y = spacing_x * math.sqrt(3)/2 + userargs.spacing_adjust_y
+
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
     offset_y = spacing_x / 3**0.5 / 2
@@ -435,7 +438,7 @@ subselection = t['max_instr_vertex_radius'] <= limit_radius
 t2 = t[subselection]
 rafts2 = [raft for raft in rafts if raft.id in t2['id']]
 n_rafts = len(rafts2)
-n_robots = n_rafts*75
+n_robots = n_rafts * rafts2[0].n_robots
 logger.info(f'Selected {n_rafts} rafts (containing {n_robots} robots) with all front vertices within limit radius.')
 t2_str = '\n' + '\n'.join(t2.pformat_all())
 logger.info(t2_str)

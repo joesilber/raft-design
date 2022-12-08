@@ -75,13 +75,15 @@
             "justMyCode": true,
             "args": [
                 "-f", "1",
-                "-r", "418.0",
+                "-r", "100", //"418.0",
                 "-g", "1.041",
                 "-l", "216", // approx 166 mechanical + 50 electrical (contacts? connectors?)
                 "-w", "36",
                 "-c", "2.2",
                 "-iw", "0.0",
                 "-b", "13.821",
+                "-sx", "-2.6",
+                "-sy", "3.2",
                 ],
         },
 
