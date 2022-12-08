@@ -611,6 +611,8 @@ logger.info(f'Instrumented area ratio w.r.t. tile-able hexagon = (instrumented a
 overall_max_instr_vertex_radius = t2["max_instr_vertex_radius"].max() if has_shield_wall else max(robots['r']) + userargs.robot_reach
 shieldtext = 'shielded' if has_shield_wall else 'noshield'
 basename = f'{timestamp}_{focsurf_name}_raftlen{outer_profile.RL:.1f}_nomgap{userargs.raft_gap:.1f}_maxR{overall_max_instr_vertex_radius:.1f}_nrafts{n_rafts}_nrobots{n_robots}_{shieldtext}'
+if userargs.hexagonal_tile:
+    basename += '_hexlim'
 typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_profile.RL:.1f} mm' \
            f', NumRafts: {n_rafts}, NumRobots: {n_robots}' \
            f'\nMinGapFront: {t2["min_gap_front"].min():.2f} mm, MinGapRear: {t2["min_gap_rear"].min():.2f} mm' \
@@ -619,6 +621,11 @@ typtitle = f'Run: {timestamp}, FocalSurf: "{focsurf_name}", RaftLength: {outer_p
            f'\nPerRaftAreaEffic: {instr_area_efficiency*100:.1f}%, TotalInstrArea: {total_instr_area / 1e6:.4f} m^2' \
            f', InstrArea/UnvignCircleArea: {total_instr_area_ratio:.3f}' \
            f', InstrArea/UnvignHexTileArea: {total_instr_area_ratio_for_hex_tile:.3f}'
+typtitle += '\nLimitingHexagonApothem: '
+if userargs.hexagonal_tile:
+    typtitle += f'{hex_apothem:.3f} mm'
+else:
+    typtitle += f'None'
 rafts_filename = f'{basename}_raftdata.csv'
 robots_filename = f'{basename}_robotdata.csv'
 
