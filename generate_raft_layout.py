@@ -75,6 +75,7 @@ parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, l
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
 parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 parser.add_argument('-tss', '--trillium_spacing_shift', action='store_true', help='shift spacing of rafts as done in Trillium patterning')
+parser.add_argument('-hm', '--hard_mechanical_envelope', action='store_true', help='enforce restriction that no part of raft can exceed vignette radius or wedge envelope')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -252,7 +253,8 @@ if not_full_circle:
     envelope_y = np.append(envelope_y, [0, 0])
 envelope_z = np.zeros_like(envelope_x)
 
-# vignette & wedge raft selection
+# initial vignette & wedge raft selection
+# (based on raft radius --- reduces complexity of grid significantly)
 raft_position_radii = np.hypot(grid['x'], grid['y'])
 remove = raft_position_radii > vigR + spacing_x
 if not_full_circle:
@@ -289,7 +291,6 @@ else:
 # table structure for raft positions and orientations
 t = Table(grid)
 t['radius'] = np.hypot(t['x'], t['y'])
-t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability, when they are auto-generated below during raft instantiation
 other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
               'max_front_vertex_radius': float, 'min_front_vertex_radius': float,
               'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float, }
@@ -310,11 +311,40 @@ for row in t:
                 robot_pitch=userargs.robot_pitch,
                 robot_max_extent=userargs.robot_max_extent,
                 )
+    row['id'] = raft.id  # note this will be refreshed later
     rafts += [raft]
-    row['id'] = raft.id
+
+# secondary vignette & wedge raft selection
+# (if applying a hard mechanical envelope limitation)
+remove = set()
+if userargs.hard_mechanical_envelope:
+    for i, raft in enumerate(rafts):
+        front_poly = np.transpose(raft.front_poly())
+        test_x = front_poly[0].tolist()
+        test_y = front_poly[1].tolist()
+        raft_position_radii = np.hypot(test_x, test_y)
+        if any(raft_position_radii > vigR + spacing_x):
+            remove.add(i)
+        if not_full_circle:
+            raft_position_angles = np.degrees(np.arctan2(test_y, test_x))
+            if any(raft_position_angles > max(0, userargs.wedge)):
+                remove.add(i) 
+            if any(raft_position_angles < min(0, userargs.wedge)):
+                remove.add(i)
+    for i in sorted(remove, reverse=True):
+        t.remove_row(i)
+
+# possibly delete additional rafts, and refresh ids
+t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability
+selected_ordered_rafts = t['id']
+rafts = [rafts[i] for i in selected_ordered_rafts]
+for i, raft in enumerate(rafts):
+    raft.id = i
+    t['id'][i] = i
 id_rafts = {raft.id: raft for raft in rafts}  # for lookup convenience
 
 # apply custom transforms
+# (intentionally occurs after the automated selections above)
 user_transformed_rafts = set()
 for transform in user_transforms:
     id = transform['id']
