@@ -70,6 +70,8 @@ parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm,
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft (argue 0 to have no wall)')
 parser.add_argument('-w', '--wedge', type=float, default=60.0, help='deg, angle of wedge envelope, argue 360 for full circle')
 parser.add_argument('-o', '--offset', type=str, default='hex', help='argue "hex" to do a 6-raft ring at the middle of the focal plate, or "tri" to center one raft triangle there')
+parser.add_argument('-gdx', '--global_shift_dx', type=float, default=0.0, help='mm, shifts the overall pattern of rafts by this amount in x')
+parser.add_argument('-gdy', '--global_shift_dy', type=float, default=0.0, help='mm, shifts the overall pattern of rafts by this amount in y')
 parser.add_argument('-rp', '--robot_pitch', type=float, default=6.2, help='mm, center-to-center distance between robot centers within the raft')
 parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, local to a robot, max patrol radius of fiber at full extension')
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
@@ -242,6 +244,10 @@ grid = {'x': r * np.cos(q),
         'y': r * np.sin(q),
         'spin0': natural_grid['spin0'],
         }
+
+# apply global shifts of grid
+grid['x'] += userargs.global_shift_dx
+grid['y'] += userargs.global_shift_dy
 
 # vignette & wedge envelope plottable geometry
 a = np.radians(np.linspace(0, userargs.wedge, 100))
