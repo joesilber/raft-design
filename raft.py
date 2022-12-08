@@ -92,6 +92,11 @@ class Raft:
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
         return float(self.spin0 - self.precession)
 
+    @property
+    def n_robots(self):
+        '''number of robots on this raft'''
+        return len(self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch))
+
     def front_poly(self, instr=False):
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
