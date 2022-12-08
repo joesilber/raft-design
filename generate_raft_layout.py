@@ -62,6 +62,9 @@ focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-r', '--limit_radius', type=float, default=0, help='maximum radius beyond which no part of raft instrumented area shall protrude, argue 0 to use the default for the given focal surface')
+parser.add_argument('-mrl', '--mechanical_radius_offset_limit', type=float, default=np.inf, help='mm, enforce restriction that no mechanical part of raft can exceed "limit_radius" plus this offset')
+parser.add_argument('-mwl', '--mechanical_wedge_offset_limit', type=float, default=0.0, help='mm, if "wedge" argument < 360 deg, then no part of raft can exceed the angular wedge envelope minus this linear offset')
+parser.add_argument('-hex', '--hexagonal_tile', action='store_true', help='limit included rafts to a hexagon-shaped tile. the hexagon inscribes a circle whose radius is the maximum mechanical raft radius point (as determined by applying any other limit settings)')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
@@ -77,7 +80,6 @@ parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, l
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
 parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 parser.add_argument('-tss', '--trillium_spacing_shift', action='store_true', help='shift spacing of rafts as done in Trillium patterning')
-parser.add_argument('-hm', '--hard_mechanical_envelope', action='store_true', help='enforce restriction that no part of raft can exceed vignette radius or wedge envelope')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -197,7 +199,8 @@ if userargs.trillium_spacing_shift:
     spacing_x_adjust = -2.6 * userargs.robot_pitch / tuned_pitch
     spacing_y_adjust = 1.0 * userargs.robot_pitch / tuned_pitch
     spacing_x += spacing_x_adjust
-    spacing_y += spacing_y_adjust       
+    spacing_y += spacing_y_adjust
+    logger.info(f'Applied Trillium spacing shift to initial raft grid of dx = {spacing_x_adjust:.3f} mm, dy = {spacing_y_adjust:.3f} mm')
 if userargs.offset == 'hex':
     offset_x = spacing_x / 2
     offset_y = spacing_x / 3**0.5 / 2
@@ -323,22 +326,42 @@ for row in t:
 # secondary vignette & wedge raft selection
 # (if applying a hard mechanical envelope limitation)
 remove = set()
-if userargs.hard_mechanical_envelope:
+mechanical_limit = userargs.limit_radius + userargs.mechanical_radius_offset_limit
+logger.info(f'Mechanical limit radius = {mechanical_limit:.3f} mm')
+max_radius_found = 0.0
+for i, raft in enumerate(rafts):
+    front_poly = np.transpose(raft.front_poly())
+    vertex_radii = np.hypot(front_poly[0], front_poly[1])
+    if any(vertex_radii > mechanical_limit):
+        remove.add(i)
+    if userargs.mechanical_wedge_offset_limit and not_full_circle:
+        test_x = front_poly[0] - userargs.mechanical_wedge_offset_limit / np.cos(np.radians(userargs.wedge))
+        test_y = front_poly[1] - userargs.mechanical_wedge_offset_limit
+        vertex_angles = np.degrees(np.arctan2(test_y, test_x))
+        if any(vertex_angles > max(0, userargs.wedge)):
+            remove.add(i) 
+        if any(vertex_angles < min(0, userargs.wedge)):
+            remove.add(i)
+    max_radius_found = max(min(max(vertex_radii),  mechanical_limit), max_radius_found)
+if userargs.hexagonal_tile:
+    hex_sector_angles = [30 + 60*i for i in range(6)]  # normal to hexagon side
+    sector_mins = [a - 30 for a in hex_sector_angles]
+    sector_maxs = [a + 30 for a in hex_sector_angles]
+    hex_apothem = max_radius_found * math.sqrt(3)/2
     for i, raft in enumerate(rafts):
         front_poly = np.transpose(raft.front_poly())
-        test_x = front_poly[0].tolist()
-        test_y = front_poly[1].tolist()
-        raft_position_radii = np.hypot(test_x, test_y)
-        if any(raft_position_radii > vigR + spacing_x):
+        vertex_angles = np.degrees(np.arctan2(front_poly[1], front_poly[0]))
+        above_mins = vertex_angles >= sector_mins
+        below_maxs = vertex_angles < sector_maxs
+        sector_angles = np.array(hex_sector_angles)[np.logical_and(above_mins, below_maxs)]
+        local_angles = vertex_angles - sector_angles[0]
+        local_radial_limits = hex_apothem / np.cos(np.radians(local_angles))
+        vertex_radii = np.hypot(front_poly[0], front_poly[1])
+        if any(vertex_radii > local_radial_limits):
             remove.add(i)
-        if not_full_circle:
-            raft_position_angles = np.degrees(np.arctan2(test_y, test_x))
-            if any(raft_position_angles > max(0, userargs.wedge)):
-                remove.add(i) 
-            if any(raft_position_angles < min(0, userargs.wedge)):
-                remove.add(i)
-    for i in sorted(remove, reverse=True):
-        t.remove_row(i)
+for i in sorted(remove, reverse=True):
+    t.remove_row(i)
+logger.info(f'Removed {len(remove)} rafts which exceeded limit settings from initial grid of {len(grid["x"])}.')
 
 # possibly delete additional rafts, and refresh ids
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability
