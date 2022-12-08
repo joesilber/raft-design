@@ -392,7 +392,10 @@ if skip_interference_checks:
     logger.warning('Turned off automatic raft interference checks, since user has input custom raft position shifts.')
 
 # determine neighbors
-neighbor_selection_radius = spacing_x / math.sqrt(3) * 1.1
+if userargs.trillium_spacing_shift:
+    neighbor_selection_radius = np.hypot(spacing_x, spacing_y) / math.sqrt(3) * 1.1
+else:
+    neighbor_selection_radius = spacing_x / math.sqrt(3) * 1.1
 for raft in rafts:
     if is_convex:
         r_others = np.array([other.r for other in rafts])  # "others" here will actually include self, but that's ok, will filter out later
@@ -438,10 +441,10 @@ def calc_gaps(rafts, return_type='table'):
             vecs_front += [vec_front]
             vecs_rear += [vec_rear]
         if not raft.neighbors:
-            mags_front = [np.inf]
-            mags_rear = [np.inf]
-            vecs_front = [[0,0,0]]
-            vecs_rear = [[0,0,0]]
+            mags_front += [np.inf]
+            mags_rear += [np.inf]
+            vecs_front += [[0,0,0]]
+            vecs_rear += [[0,0,0]]
         for name, func in {'min': np.argmin, 'max': np.argmax}.items():
             front_idx = func(mags_front)
             rear_idx = func(mags_rear)
@@ -462,7 +465,9 @@ def print_stats(table, column_keys):
     for key in column_keys:
         s = f'For "{key}" column:'
         for name, func in statfuncs.items():
-            s += f'\n  {name:>6} = {func(table[key]):.3f}'
+            data = np.array(table[key])
+            finite_data = data[np.isfinite(data)]
+            s += f'\n  {name:>6} = {func(finite_data):.3f}'
         logger.info(s)
 
 def calc_and_print_gaps(rafts, return_type='table'):

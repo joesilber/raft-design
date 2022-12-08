@@ -5,6 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "generate - megamapper - 26,100 - 1/6",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "0",
+                "-r", "620.0",
+                "-w", "60",
+                // "--help",
+                ],
+        },
+
+        {
             "name": "generate - DESI2 - 11,250 - 1/6",
             "type": "python",
             "request": "launch",
@@ -36,6 +50,20 @@
                 ],
         },
         
+        {
+            "name": "generate - DESI2 - 8,550 - 1/6",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "1",
+                "-r", "418.0",
+                "-g", "0.4",
+                "-w", "60",
+                ],
+        },
+
         {
             "name": "generate - DESI2 - 11,250 - full",
             "type": "python",
