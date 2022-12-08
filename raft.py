@@ -424,7 +424,8 @@ if __name__ == "__main__":
 
     pattern2D = raft.instr_profile.generate_robot_pattern()
     print('pattern of robot centers (2D):\n', pattern2D)
-    print('n_robots_in_pattern', len(pattern2D[0]))
+    print('n robots in pattern', len(pattern2D))
+    print('num robots (as calculated by raft)', raft.n_robots)
     robots = raft.generate_robots_table(global_coords=True)
     pattern3D = np.array([robots['x'].data, robots['y'].data, robots['z'].data])
     print('pattern of robot centers (3D):\n', pattern3D)      
@@ -437,4 +438,5 @@ if __name__ == "__main__":
     plt.plot(perimeter['x'], perimeter['y'], 'rx')
     plt.axis('equal')
     plt.show()
+    
     pass
