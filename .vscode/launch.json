@@ -65,7 +65,7 @@
         },
 
         {
-            "name": "generate - DESI2 - 11,250 - full",
+            "name": "generate - DESI2 - 11,250 - full - noshield",
             "type": "python",
             "request": "launch",
             "module": "generate_raft_layout",
@@ -105,8 +105,8 @@
             "args": [
                 "-f", "1",
                 "-r", "417.0",
-                "-g", "1.041",
-                "-l", "216", // approx 166 mechanical + 50 electrical (contacts? connectors?)
+                "-g", "1.0",
+                "-l", "252", // approx 166 mechanical + 86 electrical (contacts? connectors? assume like DESI FIPOS)
                 "-w", "36",
                 "-c", "2.2",
                 "-iw", "0.0",

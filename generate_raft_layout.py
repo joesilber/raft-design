@@ -295,7 +295,10 @@ else:
     # positions have been tabulated. Here we just set some nominal "instr_profile"
     # for congruity wiht the other case.
     logger.info(f'Raft has no shield wall.')
-    instr_profile = outer_profile
+    instr_profile = RaftProfile(tri_base=outer_profile.RB,
+                                length=userargs.raft_length,
+                                chamfer=userargs.instr_chamfer,
+                                )
 
 # table structure for raft positions and orientations
 t = Table(grid)
