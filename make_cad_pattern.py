@@ -8,6 +8,7 @@
 
 POSSIBLE_FREECAD_PATHs = ['C:/Program Files/FreeCAD 0.19/bin',
                           'C:/Users/jhsilber/AppData/Local/Programs/FreeCAD 0.19/bin',
+                          'C:/Program Files/FreeCAD 0.20/bin',
                          ]  # add your path to your computer's FreeCAD.so or FreeCAD.dll file
 
 import os
