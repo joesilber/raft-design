@@ -340,17 +340,19 @@ for row in t:
     rafts += [raft]
 
 # optimize defocus and tilt
-optimize_defocus = True  # for consistency of form below
+optimize_focus = True  # for consistency of form below
 optimize_tilt = loss_functions_are_defined
 for i, raft in enumerate(rafts):
     points3D = raft.generate_local_robot_centers_no_offsets()
-    if optimize_defocus:
+    if optimize_focus:
         logger.info(f'Initial defocus offset for raft at r = {raft.r:.3f} mm --> {raft.defocus_offset:.3f} mm')
     if optimize_tilt:
         logger.info(f'Initial tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
     def rms_err_or_loss(offsets):
-        raft.focus_offset = offsets['focus']
-        raft.tilt_offset = offsets['tilt']
+        if optimize_focus:
+            raft.focus_offset = offsets['focus']
+        if optimize_tilt:
+            raft.tilt_offset = offsets['tilt']
         placed = raft.place_poly(points3D)
         r = np.hypot(placed[:,0], placed[:,1])
         z_errors = placed[:,2] - R2Z(r)
@@ -366,11 +368,12 @@ for i, raft in enumerate(rafts):
         return norm
     offsets0 = {'focus': 0.0, 'tilt': 0.0}
     result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
-    raft.focus_offset = float(result.x)
-    if optimize_defocus:
-        logger.info(f'Optimized defocus offset for raft at r = {raft.r:.3f} mm --> {raft.defocus_offset:.3f} mm')
+    if optimize_focus:
+        raft.focus_offset = float(result.x['focus'])
+        logger.info(f'Optimized focus offset for raft at r = {raft.r:.3f} mm --> {raft.focus_offset:.3f} mm')
     if optimize_tilt:
-        logger.info(f'Optimized tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
+        raft.tilt_offset = float(result.x['tilt'])
+        logger.info(f'Optimized  tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
 
 # secondary vignette & wedge raft selection
 # (if applying a hard mechanical envelope limitation)
