@@ -41,7 +41,8 @@ logger, _, _ = simple_logger.start_logger(logpath)
 # DERIVED:
 #   S (mm) ... integrated distance along surface from optical axis
 #   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
-#   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis) 
+#   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis)
+dz2blur_DESI = lambda dz_mm: (dz_mm*1000) / 2 / (14.55 / 3.797) / 3  # fiber defocus to blur conversion for the DESI corrector, defined per DESI-0347, (defocus distance / 2) / (f-number) / 3, input units mm
 focal_surfaces = {
     'MM1536-cfg1-20210910':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
@@ -54,6 +55,9 @@ focal_surfaces = {
         'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
         'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
         'vigR': 406.,
+        'defocus_loss': lambda dz: -(0.000141553*dz2blur_DESI(dz) - 0.000373672*dz2blur_DESI(dz)**2 + 1.76888E-06*dz2blur_DESI(dz)**3 + 8.23219E-08*dz2blur_DESI(dz)**4 + -8.72644E-10*dz2blur_DESI(dz)**5)
+
+
         },
     }
 focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
