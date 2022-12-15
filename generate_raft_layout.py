@@ -359,7 +359,10 @@ for i, raft in enumerate(rafts):
         focus_errors = z_errors/math.cos(math.radians(raft.nutation))
         if loss_functions_are_defined:
             defocus_losses = defocus2loss(focus_errors)
-            tilt_errors = raft.nutation - R2NUT(r)  # approximately, more accurate would be to include the raft precession angle as well in the first term
+            common_robots_direction = raft.z_vector  # assume here robots are mounted all parallel to raft axis
+            ideal_nutations = np.radians(R2NUT(r))
+            ideal_directions = [np.sin(ideal_nutations), np.zeros_like(ideal_nutations), np.cos(ideal_nutations)] # direction each robot would ideally be mounted
+            tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / (np.norm(common_robots_direction) * np.norm(ideal_directions))))
             tilt_losses = tilt2loss(tilt_errors)
             errors_or_losses = 1 - (1 - defocus_losses) * (1 - tilt_losses)
         else:

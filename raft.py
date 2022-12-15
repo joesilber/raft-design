@@ -38,6 +38,8 @@ class Raft:
         self.x0 = x0
         self.y0 = y0
         self.spin0 = spin0
+        self.focus_offset = focus_offset
+        self.tilt_offset = tilt_offset
         self.neighbors = []
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
         self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
@@ -46,8 +48,6 @@ class Raft:
         self.sphR = sphR
         self.robot_pitch = robot_pitch
         self.robot_max_extent = robot_max_extent
-        self.focus_offset = focus_offset
-        self.tilt_offset = tilt_offset
 
     @property
     def x(self):
@@ -106,6 +106,13 @@ class Raft:
         '''rotation [deg] about raft's local z-axis, *including* compensation for
         precession (since raft orientation is defined by a 3-2-3 Euler rotation)'''
         return float(self.spin0 - self.precession)
+
+    @property
+    def z_vector(self):
+        '''unit vector pointing in direction of raft z-axis'''
+        rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
+        rotated = rot.apply([0, 0, 1])
+        return rotated
 
     @property
     def n_robots(self):
