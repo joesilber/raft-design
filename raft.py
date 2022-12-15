@@ -11,15 +11,18 @@ _raft_id_counter = 0
 class Raft:
     '''Represents a single triangular raft.'''
     
-    def __init__(self, x=0., y=0., spin0=0.,
+    def __init__(self, x0=0., y0=0., spin0=0.,
+                 focus_offset=0., tilt_offset=0.,
                  outer_profile=None, instr_profile=None,
                  r2nut=None, r2z=None, sphR=math.inf,
                  robot_pitch=6.2, robot_max_extent=4.4,
                  ):
         '''
-        x ... [mm] x location of center of front triangle
-        y ... [mm] y location of center of front triangle
+        x0 ... [mm] x location of center of front triangle, *not* including tilt and focus offset compensations
+        y0 ... [mm] y location of center of front triangle, *not* including tilt and focus offset compensations
         spin0 ... [deg] rotation of triangle, *not* including precession compensation
+        focus_offset ... [mm], use this parameter to adjust focus of the overall raft (i.e. when optimizing)
+        tilt_offset ... [mm], use this parameter to adjust nutation of the overall raft (i.e. when optimizing)
         outer_profile ... RaftProfile instance, defining outer geometry
         instr_profile ... RaftProfile instance, defining instrumented geometry
         r2nut ... [mm --> mm] function for converting focal plane radius to nutation angle of raft
@@ -32,8 +35,8 @@ class Raft:
         global _raft_id_counter
         self.id = _raft_id_counter
         _raft_id_counter += 1
-        self.x = x
-        self.y = y
+        self.x0 = x0
+        self.y0 = y0
         self.spin0 = spin0
         self.neighbors = []
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
@@ -43,48 +46,60 @@ class Raft:
         self.sphR = sphR
         self.robot_pitch = robot_pitch
         self.robot_max_extent = robot_max_extent
-        self._focus_offset = 0.
-        self._update_focus_offset()
+        self.focus_offset = focus_offset
+        self.tilt_offset = tilt_offset
+
+    @property
+    def x(self):
+        '''x position [mm] of center of raft at front, including corrections
+        for focus_offset and tilt_offset parameters'''
+        return self.r * math.cos(math.radians(self.precession0))
+
+    @property
+    def y(self):
+        '''x position [mm] of center of raft at front, including corrections
+        for focus_offset and tilt_offset parameters'''
+        return self.r * math.sin(math.radians(self.precession0))
 
     @property
     def r(self):
-        '''radial position [mm] of center of raft at front'''
-        return math.hypot(self.x, self.y)
-    
-    def _update_focus_offset(self):
-        '''focus shift of raft, along z-axis local to the raft'''
-        # 2022-11-30 - JHS - in principle would be more optimal to convert
-        # both defocus and chief ray errors into the same currency (throughput
-        # loss), and minimize on that.
-        points3D = self._spherical_robot_pattern()
-        orig_offset = self._focus_offset  # keep for ease of debugging
-        def calc_focus_err(offset):
-            self._focus_offset = offset
-            placed = self._place_poly(points3D)
-            r = np.hypot(placed[:,0], placed[:,1])
-            z_errors = placed[:,2] - self.r2z(r)
-            focus_errors = z_errors/math.cos(math.radians(self.nutation))
-            norm_error = (np.sum(focus_errors**2)/len(focus_errors))**0.5
-            return norm_error
-        guess = orig_offset
-        result = optimize.least_squares(fun=calc_focus_err, x0=guess)
-        self._focus_offset = float(result.x)
+        '''radial position [mm] of center of raft at front, including corrections
+        for focus_offset and tilt_offset parameters''' 
+        offset_r_correction = self.focus_offset * math.sin(math.radians(self.nutation))
+        return self.r0 + offset_r_correction
+
+    @property
+    def r0(self):
+        '''radial position [mm] of center of raft at front, *not* including
+        corrections for focus_offset and tilt_offset parameters'''
+        return math.hypot(self.x0, self.y0)
     
     @property
     def z(self):
-        '''z position [mm] of center of raft at front'''
-        offset_correction = self._focus_offset * math.cos(math.radians(self.nutation))
-        return float(self.r2z(self.r) + offset_correction)
+        '''z position [mm] of center of raft at front, including corrections
+        for focus_offset and tilt_offset parameters'''
+        z0 = float(self.r2z(self.r))
+        offset_z_correction = self.focus_offset * math.cos(math.radians(self.nutation))
+        return z0 + offset_z_correction
 
     @property
     def precession(self):
-        '''angular position [deg] about the z-axis, same as precession'''
+        '''angular position [deg] about the z-axis, including corrections for
+        focus_offset and tilt_offset parameters'''
         return math.degrees(math.atan2(self.y, self.x))
 
     @property
+    def precession0(self):
+        '''angular position [deg] about the z-axis, *not* including
+        corrections for focus_offset and tilt_offset parameters'''
+        return math.degrees(math.atan2(self.y0, self.x0))
+
+    @property
     def nutation(self):
-        '''angle [deg] w.r.t. z-axis (i.e. matches chief ray at center of raft)'''
-        return float(self.r2nut(self.r))
+        '''angle [deg] w.r.t. z-axis, where if tilt_offset parameter is zero,
+        then it would match chief ray at center of raft'''
+        nut0 = float(self.r2nut(self.r0))
+        return nut0 + self.tilt_offset
     
     @property
     def spin(self):
@@ -101,16 +116,16 @@ class Raft:
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal
         surface). Set arg instr=True to use the smaller instrumented area profile'''
         profile = self.instr_profile if instr else self.outer_profile
-        poly = np.array(profile.polygon3D) + [0, 0, self._focus_offset]
-        placed = self._place_poly(poly)
+        poly = profile.polygon3D
+        placed = self.place_poly(poly)
         return placed.tolist()
 
     @property
     def rear_poly(self):
         '''Nx3 list of polygon vertices giving raft profile at rear (i.e. at
         connectors bulkhead, etc)'''
-        poly = np.array(self.outer_profile.polygon3D) + [0, 0, self._focus_offset - self.outer_profile.RL]
-        placed = self._place_poly(poly)
+        poly = np.array(self.outer_profile.polygon3D) + [0, 0, -self.outer_profile.RL]
+        placed = self.place_poly(poly)
         return placed.tolist()
 
     @property
@@ -149,7 +164,7 @@ class Raft:
         points2D = np.transpose(points3D)[:2]
         n_pts = len(points2D[0])
         if global_coords:
-            points3D = self._place_poly(points3D)
+            points3D = self.place_poly(points3D)
             # 2022-11-30 - JHS - Current design assumption is we will  
             # keep all robot center axes parallel to the raft.
             angles = np.ones_like(points3D) * [self.precession, self.nutation, self.spin]
@@ -169,8 +184,8 @@ class Raft:
         table = Table(data)
         return table
     
-    def _spherical_robot_pattern(self):
-        '''generate 3D robot pattern, centered at origin, with robot centers placed on nominal sphere'''
+    def nominal_spherical_robot_pattern(self):
+        '''generate 3D robot pattern, centered at raft origin, with robot centers placed on nominal sphere'''
         points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
         points2D = np.transpose(points2D)
         local_r = np.hypot(points2D[0], points2D[1])
@@ -208,11 +223,12 @@ class Raft:
         raft's front polygon toward corresponding closest point on "other" raft.'''
         return Raft.poly_gap(other_raft.rear_poly, self.rear_poly)
 
-    def _place_poly(self, poly):
+    def place_poly(self, poly):
         '''Transform a polygon (N x 3) from the origin to the raft's center position on the
         focal surface. The polygon is first rotated such that a vector (0, 0, 1) becomes
-        its final orientation when placed at the corresponding radius, and such that a point
-        (0, 0, 0) will land on the focal surface.'''
+        its final orientation (including parameter tilt_offset) when placed at the corresponding
+        radius, and such that a point (0, 0, 0) will land on the nominal focal surface (if the
+        parameter focus_offset = 0) or at the distance focus_offset from it.'''
         rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
         rotated = rot.apply(poly)
         translated = rotated + [self.x, self.y, self.z]
