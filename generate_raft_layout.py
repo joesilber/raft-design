@@ -155,6 +155,12 @@ if not CRD2R_undefined:
 R2NUT = interp1d(r[:-1], nut)
 NUT2R = interp1d(nut, r[:-1])
 
+# throughput loss functions
+loss_functions_are_defined = all(func in focsurf for func in ['defocus2blur', 'blur2loss', 'tilt2loss']])
+if loss_functions_are_defined:
+    defocus2loss = lambda dz_mm: focsurf['blur2loss'](focsurf['defocus2blur'](dz_mm))
+    tilt2loss = focsurf['tilt2loss']
+
 # best-fit sphere
 calc_sphR = lambda z_ctr: (r**2 + (z - z_ctr)**2)**0.5
 def calc_sphR_err(z_ctr):
@@ -281,7 +287,7 @@ keep = np.logical_not(remove)
 for key in grid:
     grid[key] = np.array(grid[key])[keep]
 
-# instrumented area calca
+# instrumented area calcs
 has_shield_wall = userargs.instr_wall != 0
 if has_shield_wall:
     instr_profile = RaftProfile(tri_base=outer_profile.RB - 2 * userargs.instr_wall * 3**0.5,
@@ -332,6 +338,39 @@ for row in t:
                 )
     row['id'] = raft.id  # note this will be refreshed later
     rafts += [raft]
+
+# optimize defocus and tilt
+optimize_defocus = True  # for consistency of form below
+optimize_tilt = loss_functions_are_defined
+for i, raft in enumerate(rafts):
+    points3D = raft.generate_local_robot_centers_no_offsets()
+    if optimize_defocus:
+        logger.info(f'Initial defocus offset for raft at r = {raft.r:.3f} mm --> {raft.defocus_offset:.3f} mm')
+    if optimize_tilt:
+        logger.info(f'Initial tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
+    def rms_err_or_loss(offsets):
+        raft.focus_offset = offsets['focus']
+        raft.tilt_offset = offsets['tilt']
+        placed = raft.place_poly(points3D)
+        r = np.hypot(placed[:,0], placed[:,1])
+        z_errors = placed[:,2] - R2Z(r)
+        focus_errors = z_errors/math.cos(math.radians(raft.nutation))
+        if loss_functions_are_defined:
+            defocus_losses = defocus2loss(focus_errors)
+            tilt_errors = raft.nutation - R2NUT(r)  # approximately, more accurate would be to include the raft precession angle as well in the first term
+            tilt_losses = tilt2loss(tilt_errors)
+            errors_or_losses = 1 - (1 - defocus_losses) * (1 - tilt_losses)
+        else:
+            errors_or_losses = focus_errors
+        norm = (np.sum(errors_or_losses**2)/len(errors_or_losses))**0.5
+        return norm
+    offsets0 = {'focus': 0.0, 'tilt': 0.0}
+    result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
+    raft.focus_offset = float(result.x)
+    if optimize_defocus:
+        logger.info(f'Optimized defocus offset for raft at r = {raft.r:.3f} mm --> {raft.defocus_offset:.3f} mm')
+    if optimize_tilt:
+        logger.info(f'Optimized tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
 
 # secondary vignette & wedge raft selection
 # (if applying a hard mechanical envelope limitation)

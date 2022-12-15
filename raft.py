@@ -160,7 +160,7 @@ class Raft:
             precession, nutation, spin ... angle of robot central axes
             intersects perimeter ... whether each robot's patrol disk intersects outline of raft
         '''
-        points3D = self._spherical_robot_pattern()
+        points3D = self.generate_local_robot_centers_no_offsets()
         points2D = np.transpose(points3D)[:2]
         n_pts = len(points2D[0])
         if global_coords:
@@ -184,8 +184,10 @@ class Raft:
         table = Table(data)
         return table
     
-    def nominal_spherical_robot_pattern(self):
-        '''generate 3D robot pattern, centered at raft origin, with robot centers placed on nominal sphere'''
+    def generate_local_robot_centers_no_offsets(self):
+        '''generate 3D pattern of center positions of the robots. pattern is centered
+        at raft origin, with robot centers placed on nominal sphere. defocus and tilt
+        offset adjustments are *not* applied'''
         points2D = self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch)
         points2D = np.transpose(points2D)
         local_r = np.hypot(points2D[0], points2D[1])
