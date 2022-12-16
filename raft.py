@@ -110,9 +110,7 @@ class Raft:
     @property
     def z_vector(self):
         '''unit vector pointing in direction of raft z-axis'''
-        rot = Rotation.from_euler('ZYZ', (self.precession, self.nutation, self.spin), degrees=True)
-        rotated = rot.apply([0, 0, 1])
-        return rotated
+        return Raft.pn2zvec(self.precession, self.nutation)
 
     @property
     def n_robots(self):
@@ -313,6 +311,16 @@ class Raft:
         s = (dx_A * (B1[1] - A1[1]) + dy_A * (A1[0] - B1[0])) / delta
         t = (dx_B * (A1[1] - B1[1]) + dy_B * (B1[0] - A1[0])) / (-delta)
         return (0 <= s <= 1) and (0 <= t <= 1)
+
+    @staticmethod
+    def pn2zvec(precession, nutation):
+        '''returns a unit vector made by rotating (0, 0, 1) by angles precession
+        and nutation (units degrees)'''
+        p = math.radians(precession)
+        n = math.radians(nutation)
+        return [math.cos(p) * math.sin(n),
+                math.sin(p) * math.sin(n),
+                math.cos(n)]
     
 class RaftProfile:
     '''Basic 2D profile geometry of raft.'''
@@ -440,6 +448,16 @@ class RaftProfile:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    
+    num = 1000
+    test_p = (np.random.random(num)-0.5)*360
+    test_n = (np.random.random(num)-0.5)*180
+    rot_results, func_results = [], []
+    for i in range(num):
+        rot = Rotation.from_euler('ZYZ', (test_p[i], test_n[i], -test_p[i]), degrees=True)
+        rot_results += [rot.apply([0, 0, 1])]
+        func_results += [Raft.pn2zvec(test_p[i], test_n[i])]
+    errs = np.array(rot_results) - np.array(func_results)
 
     raft = Raft(sphR=4478.677)
     
