@@ -14,6 +14,7 @@ import numpy as np
 from numpy.polynomial import Polynomial
 from astropy.table import Table, vstack
 import scipy.interpolate as interpolate
+from scipy.spatial.transform import Rotation
 from scipy import optimize
 import matplotlib.pyplot as plt
 import os
@@ -156,10 +157,11 @@ R2NUT = interp1d(r[:-1], nut)
 NUT2R = interp1d(nut, r[:-1])
 
 # throughput loss functions
-loss_functions_are_defined = all(func in focsurf for func in ['defocus2blur', 'blur2loss', 'tilt2loss']])
+loss_functions_are_defined = all(func in focsurf for func in ['defocus2blur', 'blur2loss', 'tilt2loss'])
 if loss_functions_are_defined:
-    defocus2loss = lambda dz_mm: focsurf['blur2loss'](focsurf['defocus2blur'](dz_mm))
-    tilt2loss = focsurf['tilt2loss']
+    not_greater_than_one = lambda x: np.min([x, np.ones_like(x)], axis=0)
+    defocus2loss = lambda dz_mm: not_greater_than_one(focsurf['blur2loss'](focsurf['defocus2blur'](dz_mm)))
+    tilt2loss = lambda dtilt_deg: not_greater_than_one(focsurf['tilt2loss'](dtilt_deg))
 
 # best-fit sphere
 calc_sphR = lambda z_ctr: (r**2 + (z - z_ctr)**2)**0.5
@@ -256,14 +258,14 @@ if is_convex:  # natural grid lies on the rear surface of rafts array
     r = rearS_to_frontR(s)
 else: # natural grid lies on the front surface of rafts array
     r = S2R(s)
-grid = {'x': r * np.cos(q),
-        'y': r * np.sin(q),
+grid = {'x0': r * np.cos(q),
+        'y0': r * np.sin(q),
         'spin0': natural_grid['spin0'],
         }
 
 # apply global shifts of grid
-grid['x'] += userargs.global_shift_dx
-grid['y'] += userargs.global_shift_dy
+grid['x0'] += userargs.global_shift_dx
+grid['y0'] += userargs.global_shift_dy
 
 # vignette & wedge envelope plottable geometry
 a = np.radians(np.linspace(0, userargs.wedge, 100))
@@ -277,10 +279,10 @@ envelope_z = np.zeros_like(envelope_x)
 
 # initial vignette & wedge raft selection
 # (based on raft radius --- reduces complexity of grid significantly)
-raft_position_radii = np.hypot(grid['x'], grid['y'])
+raft_position_radii = np.hypot(grid['x0'], grid['y0'])
 remove = raft_position_radii > vigR + spacing_x
 if not_full_circle:
-    raft_position_angles = np.degrees(np.arctan2(grid['y'], grid['x']))
+    raft_position_angles = np.degrees(np.arctan2(grid['y0'], grid['x0']))
     remove |= raft_position_angles > max(0, userargs.wedge)
     remove |= raft_position_angles < min(0, userargs.wedge)
 keep = np.logical_not(remove)
@@ -315,7 +317,7 @@ else:
 
 # table structure for raft positions and orientations
 t = Table(grid)
-t['radius'] = np.hypot(t['x'], t['y'])
+t['radius'] = np.hypot(t['x0'], t['y0'])
 other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
               'max_front_vertex_radius': float, 'min_front_vertex_radius': float,
               'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float, }
@@ -325,8 +327,8 @@ for col, typecast in other_cols.items():
 # generate raft instances
 rafts = []
 for row in t:
-    raft = Raft(x=row['x'],
-                y=row['y'],
+    raft = Raft(x0=row['x0'],
+                y0=row['y0'],
                 spin0=row['spin0'],
                 outer_profile=outer_profile,
                 instr_profile=instr_profile,
@@ -338,45 +340,6 @@ for row in t:
                 )
     row['id'] = raft.id  # note this will be refreshed later
     rafts += [raft]
-
-# optimize defocus and tilt
-optimize_focus = True  # for consistency of form below
-optimize_tilt = loss_functions_are_defined
-for i, raft in enumerate(rafts):
-    points3D = raft.generate_local_robot_centers_no_offsets()
-    if optimize_focus:
-        logger.info(f'Initial defocus offset for raft at r = {raft.r:.3f} mm --> {raft.defocus_offset:.3f} mm')
-    if optimize_tilt:
-        logger.info(f'Initial tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
-    def rms_err_or_loss(offsets):
-        if optimize_focus:
-            raft.focus_offset = offsets['focus']
-        if optimize_tilt:
-            raft.tilt_offset = offsets['tilt']
-        placed = raft.place_poly(points3D)
-        r = np.hypot(placed[:,0], placed[:,1])
-        z_errors = placed[:,2] - R2Z(r)
-        focus_errors = z_errors/math.cos(math.radians(raft.nutation))
-        if loss_functions_are_defined:
-            defocus_losses = defocus2loss(focus_errors)
-            common_robots_direction = raft.z_vector  # assume here robots are mounted all parallel to raft axis
-            ideal_nutations = np.radians(R2NUT(r))
-            ideal_directions = [np.sin(ideal_nutations), np.zeros_like(ideal_nutations), np.cos(ideal_nutations)] # direction each robot would ideally be mounted
-            tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / (np.norm(common_robots_direction) * np.norm(ideal_directions))))
-            tilt_losses = tilt2loss(tilt_errors)
-            errors_or_losses = 1 - (1 - defocus_losses) * (1 - tilt_losses)
-        else:
-            errors_or_losses = focus_errors
-        norm = (np.sum(errors_or_losses**2)/len(errors_or_losses))**0.5
-        return norm
-    offsets0 = {'focus': 0.0, 'tilt': 0.0}
-    result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
-    if optimize_focus:
-        raft.focus_offset = float(result.x['focus'])
-        logger.info(f'Optimized focus offset for raft at r = {raft.r:.3f} mm --> {raft.focus_offset:.3f} mm')
-    if optimize_tilt:
-        raft.tilt_offset = float(result.x['tilt'])
-        logger.info(f'Optimized  tilt offset for raft at r = {raft.r:.3f} mm --> {raft.tilt_offset:.3f} deg')
 
 # secondary vignette & wedge raft selection
 # (if applying a hard mechanical envelope limitation)
@@ -416,7 +379,7 @@ if userargs.hexagonal_tile:
             remove.add(i)
 for i in sorted(remove, reverse=True):
     t.remove_row(i)
-logger.info(f'Removed {len(remove)} rafts which exceeded limit settings from initial grid of {len(grid["x"])}.')
+logger.info(f'Removed {len(remove)} rafts which exceeded limit settings from initial grid of {len(grid["x0"])}.')
 
 # possibly delete additional rafts, and refresh ids
 t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability
@@ -473,6 +436,61 @@ neighbor_counts = {raft.id: len(raft.neighbors) for raft in rafts}
 too_many_neighbors = {id: count for id, count in neighbor_counts.items() if count > 3}
 if not skip_interference_checks:
     assert not(too_many_neighbors), f'non-physical number of neighbors detected. RAFT_ID:COUNT = {too_many_neighbors}'
+
+# optimize defocus and tilt
+optimize_focus = True  # for consistency of form below
+optimize_tilt = loss_functions_are_defined
+idx_focus = 0
+idx_tilt = 1
+for i, raft in enumerate(rafts):
+    prefix = f'For raft {i:3} at r = {raft.r:7.3f} mm:'
+    points3D = raft.generate_local_robot_centers_no_offsets()
+    offsets0 = [None, None]
+    offsets0[idx_focus] = raft.focus_offset
+    offsets0[idx_tilt] = raft.tilt_offset
+    def rms_err_or_loss(offsets):
+        if optimize_focus:
+            raft.focus_offset = offsets[idx_focus]
+        if optimize_tilt:
+            raft.tilt_offset = offsets[idx_tilt]
+        placed = raft.place_poly(points3D)
+        r = np.hypot(placed[:,0], placed[:,1])
+        z_errors = placed[:,2] - R2Z(r)
+        focus_errors = z_errors/math.cos(math.radians(raft.nutation))
+        if loss_functions_are_defined:
+            defocus_losses = defocus2loss(focus_errors)
+            common_robots_direction = raft.z_vector  # assume here robots are mounted all parallel to raft axis
+            ideal_directions = []  # direction each robot would ideally be mounted
+            ideal_nutations = R2NUT(r)
+            ideal_precessions = np.degrees(np.arctan2(placed[:,1], placed[:,0]))
+            for i in range(len(points3D)):
+                rot = Rotation.from_euler('ZYZ', (ideal_precessions[i], ideal_nutations[i], -ideal_precessions[i]), degrees=True)
+                ideal_directions += [rot.apply([0, 0, 1])]
+            ideal_directions = np.transpose(ideal_directions)
+            denominator = np.linalg.norm(common_robots_direction) * np.linalg.norm(ideal_directions, axis=0)  # norms not strictly necessary since these ought to be unit vectors, but kept here as good practice in case they aren't
+            tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / denominator))
+            tilt_losses = tilt2loss(tilt_errors)
+            errors_or_losses = 1 - (1 - defocus_losses) * (1 - tilt_losses)
+        else:
+            errors_or_losses = focus_errors
+        norm = (np.sum(errors_or_losses**2)/len(errors_or_losses))**0.5
+        return norm
+    result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
+    if optimize_focus:
+        raft.focus_offset = float(result.x[idx_focus])
+        logger.info(f'{prefix} initial   focus offset    = {offsets0[idx_focus]:+6.3f} mm')
+        logger.info(f'{prefix} optimized focus offset    = {raft.focus_offset:+6.3f} mm')
+    if optimize_tilt:
+        raft.tilt_offset = float(result.x[idx_tilt])
+        logger.info(f'{prefix} initial   tilt  offset    = {offsets0[idx_tilt]:+6.3f} deg')
+        logger.info(f'{prefix} optimized tilt  offset    = {raft.tilt_offset:+6.3f} deg')
+    err_or_loss_text = 'throughput loss' if loss_functions_are_defined else 'defocus'
+    err_or_loss_before_opt = rms_err_or_loss(offsets=offsets0)
+    err_or_loss_after_opt = float(result.fun)
+    logger.info(f'{prefix} initial   {err_or_loss_text} = {err_or_loss_before_opt*100:5.2f}% RMS')
+    logger.info(f'{prefix} optimized {err_or_loss_text} = {err_or_loss_after_opt*100:5.2f}% RMS')
+    if err_or_loss_after_opt > 0.1:
+        rms_err_or_loss(offsets0)
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']

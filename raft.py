@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from scipy.spatial.transform import Rotation  # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html
+from scipy.spatial.transform import Rotation
 from scipy import optimize
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
