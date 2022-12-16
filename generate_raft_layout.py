@@ -323,7 +323,7 @@ other_cols = {'x': float, 'y': float, 'z': float, 'r': float,
               'precession': float, 'nutation': float, 'spin': float, 'id': int,
               'max_front_vertex_radius': float, 'min_front_vertex_radius': float,
               'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float,
-              'err_or_loss_placeholder': float,
+              'raft_placement_quality_placeholder': float,
               }
 for col, typecast in other_cols.items():
     t[col] = [typecast(0)]*len(t)
@@ -453,8 +453,8 @@ if not skip_interference_checks:
 optimize_focus = True  # for consistency of form below
 optimize_tilt = loss_functions_are_defined
 idx_focus, idx_tilt = 0, 1
-err_or_loss_before_opt, err_or_loss_after_opt = [], []
-err_or_loss_after_opt_by_raft_id = {}
+rpq_before_opt, rpq_after_opt = [], []  # "rpq" means "raft placement quality"
+rpq_after_opt_by_raft_id = {}
 def calc_focus_and_tilt_errors(raft):
     points3D = raft.generate_local_robot_centers_no_offsets()
     placed = raft.place_poly(points3D)
@@ -502,22 +502,27 @@ for i, raft in enumerate(rafts):
     if optimize_tilt:
         raft.tilt_offset = float(result.x[idx_tilt])
         logger.info(f'{prefix} initial --> optimized tilt offset: {offsets0[idx_tilt]:+6.3f} --> {raft.tilt_offset:+6.3f} deg')
-    err_or_loss_text = 'throughput loss' if loss_functions_are_defined else 'defocus'
-    err_or_loss_unit = '' if loss_functions_are_defined else ' mm'
-    err_or_loss_before_opt += [calc_err_or_loss(offsets=offsets0)]
-    err_or_loss_after_opt += [float(result.fun)]
-    err_or_loss_after_opt_by_raft_id[raft.id] = err_or_loss_after_opt[-1]
-    logger.info(f'{prefix} initial --> optimized RMS {err_or_loss_text}: ' \
-                f'{err_or_loss_before_opt[-1]:5.3f} --> {err_or_loss_after_opt[-1]:5.3f}{err_or_loss_unit}')
-err_or_loss_colname = f'rms {err_or_loss_text}'
+    rpq_before_opt += [calc_err_or_loss(offsets=offsets0)]
+    rpq_after_opt += [float(result.fun)]
+    if loss_functions_are_defined:
+        rpq_text = 'throughput'
+        rpq_unit = ''
+        rpq_before_opt[-1] = 1 - rpq_before_opt[-1]  # to work with throughput
+        rpq_after_opt[-1] = 1 - rpq_after_opt[-1]  # to work with throughput
+    else:
+        rpq_text = 'defocus'
+        rpq_unit = 'mm'
+    rpq_after_opt_by_raft_id[raft.id] = rpq_after_opt[-1]
+    logger.info(f'{prefix} initial --> optimized RMS {rpq_text}: ' \
+                f'{rpq_before_opt[-1]:7.4f} --> {rpq_after_opt[-1]:7.4f}{rpq_unit}')
+rpq_colname = f'rms {rpq_text}'
 if loss_functions_are_defined:
-    err_or_loss_colname += ' due to defocus and tilt error'
-err_or_loss_colname = err_or_loss_colname.replace(' ', '_')
-t.rename_column('err_or_loss_placeholder', err_or_loss_colname)
-overall_err_or_loss_before_opt = (sum(np.power(err_or_loss_before_opt, 2))/len(err_or_loss_before_opt))**0.5
-overall_err_or_loss_after_opt = (sum(np.power(err_or_loss_after_opt, 2))/len(err_or_loss_after_opt))**0.5
-logger.info(f'Initial --> optimized overall rms {err_or_loss_text} for {len(rafts)} rafts : ' \
-            f'{overall_err_or_loss_before_opt:.6f} --> {overall_err_or_loss_after_opt:.6f}{err_or_loss_unit}')
+    rpq_colname += ' (for inherent defocus and tilt error of nominal placement)'
+t.rename_column('raft_placement_quality_placeholder', rpq_colname)
+overall_rpq_before_opt = (sum(np.power(rpq_before_opt, 2))/len(rpq_before_opt))**0.5
+overall_rpq_after_opt = (sum(np.power(rpq_after_opt, 2))/len(rpq_after_opt))**0.5
+logger.info(f'Initial --> optimized overall rms {rpq_text} for {len(rafts)} rafts : ' \
+            f'{overall_rpq_before_opt:.6f} --> {overall_rpq_after_opt:.6f}{rpq_unit}')
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
@@ -604,7 +609,7 @@ for raft in rafts:
     row['min_front_vertex_radius'] = raft.min_front_vertex_radius(instr=False)
     row['max_instr_vertex_radius'] = raft.max_front_vertex_radius(instr=True)
     row['min_instr_vertex_radius'] = raft.min_front_vertex_radius(instr=True)
-    row['rms_throughput_loss_due_to_defocus_and_tilt_error'] = err_or_loss_after_opt_by_raft_id[raft.id]
+    row[rpq_colname] = rpq_after_opt_by_raft_id[raft.id]
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
@@ -644,22 +649,20 @@ if loss_functions_are_defined:
     tilt_losses = tilt2loss(robots['chief ray error'])
     robots['throughput loss (defocus)'] = defocus_losses
     robots['throughput loss (tilt error)'] = tilt_losses
-    robots['throughput loss (combined)'] = 1 - (1 - defocus_losses) * (1 - tilt_losses)
+    robots['throughput (combined)'] = (1 - defocus_losses) * (1 - tilt_losses)
 logger.info(f'Generated table of {len(robots)} individual robot positions.')
 for key, unit in {'focus error': 'mm',
                   'chief ray error': 'deg',
-                  'throughput loss (defocus)': '',
-                  'throughput loss (tilt error)': '',
-                  'throughput loss (combined)': '',
+                  'throughput (combined)': '',
                   }.items():
     argmax = robots[key].argmax()
     argmin = robots[key].argmin()
     prefix = 'robot centers -->'
-    logger.info(f'{prefix} max {key} = {robots[key][argmax]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmax]}, at radius {robots["r"][argmax]:.3f} mm')
-    logger.info(f'{prefix} min {key} = {robots[key][argmin]:.3f} {unit}, occurring at robot {robots["global robot idx"][argmin]}, at radius {robots["r"][argmin]:.3f} mm')
-    logger.info(f'{prefix} mean {key} = {robots[key].mean():.3f} {unit}')
-    logger.info(f'{prefix} median {key} = {np.median(robots[key]):.3f} {unit}')
-    logger.info(f'{prefix} rms {key} = {(np.sum(robots[key]**2)/len(robots))**0.5:.3f} {unit}')
+    logger.info(f'{prefix} max {key} = {robots[key][argmax]:.6f} {unit}, occurring at robot {robots["global robot idx"][argmax]}, at radius {robots["r"][argmax]:.3f} mm')
+    logger.info(f'{prefix} min {key} = {robots[key][argmin]:.6f} {unit}, occurring at robot {robots["global robot idx"][argmin]}, at radius {robots["r"][argmin]:.3f} mm')
+    logger.info(f'{prefix} mean {key} = {robots[key].mean():.6f} {unit}')
+    logger.info(f'{prefix} median {key} = {np.median(robots[key]):.6f} {unit}')
+    logger.info(f'{prefix} rms {key} = {(np.sum(robots[key]**2)/len(robots))**0.5:.6f} {unit}')
 
 # instrumented area calcs for the NO SHIELD case
 # (shield case was already calculated above, prior to raft objects instantiation)
