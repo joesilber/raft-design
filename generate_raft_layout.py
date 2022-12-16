@@ -727,6 +727,8 @@ rafts_filename = f'{basename}_raftdata.csv'
 robots_filename = f'{basename}_robotdata.csv'
 
 # save tables
+columns_to_remove = [col for col in t2.colnames if col[-1] == '0']
+t2.remove_columns(columns_to_remove)
 t2.write(rafts_filename, overwrite=True)
 logger.info(f'Saved rafts data table to {os.path.abspath(rafts_filename)}')
 robots.write(robots_filename, overwrite=True)
