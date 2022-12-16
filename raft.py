@@ -448,16 +448,6 @@ class RaftProfile:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    
-    num = 1000
-    test_p = (np.random.random(num)-0.5)*360
-    test_n = (np.random.random(num)-0.5)*180
-    rot_results, func_results = [], []
-    for i in range(num):
-        rot = Rotation.from_euler('ZYZ', (test_p[i], test_n[i], -test_p[i]), degrees=True)
-        rot_results += [rot.apply([0, 0, 1])]
-        func_results += [Raft.pn2zvec(test_p[i], test_n[i])]
-    errs = np.array(rot_results) - np.array(func_results)
 
     raft = Raft(sphR=4478.677)
     
