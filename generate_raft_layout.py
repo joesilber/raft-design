@@ -455,42 +455,47 @@ optimize_tilt = loss_functions_are_defined
 idx_focus, idx_tilt = 0, 1
 err_or_loss_before_opt, err_or_loss_after_opt = [], []
 err_or_loss_after_opt_by_raft_id = {}
-focus_and_tilt_err_funcs = {}
+def calc_focus_and_tilt_errors(raft):
+    points3D = raft.generate_local_robot_centers_no_offsets()
+    placed = raft.place_poly(points3D)
+    r = np.hypot(placed[:,0], placed[:,1])
+    z_errors = placed[:,2] - R2Z(r)
+    focus_errors = z_errors/math.cos(math.radians(raft.nutation))
+    common_robots_direction = raft.z_vector  # assume here robots are mounted all parallel to raft axis
+    ideal_directions = []  # direction each robot would ideally be mounted
+    ideal_nutations = R2NUT(r)
+    ideal_precessions = np.degrees(np.arctan2(placed[:,1], placed[:,0]))
+    ideal_directions = [Raft.pn2zvec(ideal_precessions[i], ideal_nutations[i]) for i in range(len(ideal_precessions))]
+    ideal_directions = np.transpose(ideal_directions)
+    denominator = np.linalg.norm(common_robots_direction) * np.linalg.norm(ideal_directions, axis=0)  # norms not strictly necessary since these ought to be unit vectors, but kept here as good practice in case they aren't
+    tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / denominator))
+    return focus_errors, tilt_errors
 for i, raft in enumerate(rafts):
     prefix = f'For raft {i} at r = {raft.r:7.3f} mm:'
     offsets0 = [None, None]
     offsets0[idx_focus] = raft.focus_offset
     offsets0[idx_tilt] = raft.tilt_offset
-    def focus_and_tilt_err_func(robot_centers):
-        r = np.hypot(robot_centers[:,0], robot_centers[:,1])
-        z_errors = robot_centers[:,2] - R2Z(r)
-        focus_errors = z_errors/math.cos(math.radians(raft.nutation))
-        common_robots_direction = raft.z_vector  # assume here robots are mounted all parallel to raft axis
-        ideal_directions = []  # direction each robot would ideally be mounted
-        ideal_nutations = R2NUT(r)
-        ideal_precessions = np.degrees(np.arctan2(robot_centers[:,1], robot_centers[:,0]))
-        ideal_directions = [Raft.pn2zvec(ideal_precessions[i], ideal_nutations[i]) for i in range(len(ideal_precessions))]
-        ideal_directions = np.transpose(ideal_directions)
-        denominator = np.linalg.norm(common_robots_direction) * np.linalg.norm(ideal_directions, axis=0)  # norms not strictly necessary since these ought to be unit vectors, but kept here as good practice in case they aren't
-        tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / denominator))
-        return focus_errors, tilt_errors
-    def rms_err_or_loss(offsets):
+    def calc_err_or_loss(offsets):
+        focus0 = raft.focus_offset
+        tilt0 = raft.tilt_offset
         if optimize_focus:
             raft.focus_offset = offsets[idx_focus]
         if optimize_tilt:
             raft.tilt_offset = offsets[idx_tilt]
-        points3D = raft.generate_local_robot_centers_no_offsets()
-        placed = raft.place_poly(points3D)
-        focus_errors, tilt_errors = focus_and_tilt_err_func(placed)
+        focus_errors, tilt_errors = calc_focus_and_tilt_errors(raft)
         if loss_functions_are_defined:
             defocus_losses = defocus2loss(focus_errors)
             tilt_losses = tilt2loss(tilt_errors)
-            errors_or_losses = 1 - (1 - defocus_losses) * (1 - tilt_losses)
+            throughput = (1 - defocus_losses) * (1 - tilt_losses)
+            rms_throughput = (sum(np.power(throughput, 2))/len(throughput))**0.5
+            output = 1 - rms_throughput
         else:
-            errors_or_losses = focus_errors
-        norm = (np.sum(errors_or_losses**2)/len(errors_or_losses))**0.5
-        return norm
-    result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
+            rms_defocus = (sum(np.powre(focus_errors, 2))/len(focus_errors))**0.5
+            output = rms_defocus
+        raft.focus_offset = focus0
+        raft.tilt_offset = tilt0
+        return output
+    result = optimize.least_squares(fun=calc_err_or_loss, x0=offsets0)
     if optimize_focus:
         raft.focus_offset = float(result.x[idx_focus])
         logger.info(f'{prefix} initial --> optimized focus offset: {offsets0[idx_focus]:+6.3f} --> {raft.focus_offset:+6.3f} mm')
@@ -499,10 +504,9 @@ for i, raft in enumerate(rafts):
         logger.info(f'{prefix} initial --> optimized tilt offset: {offsets0[idx_tilt]:+6.3f} --> {raft.tilt_offset:+6.3f} deg')
     err_or_loss_text = 'throughput loss' if loss_functions_are_defined else 'defocus'
     err_or_loss_unit = '' if loss_functions_are_defined else ' mm'
-    err_or_loss_before_opt += [rms_err_or_loss(offsets=offsets0)]
+    err_or_loss_before_opt += [calc_err_or_loss(offsets=offsets0)]
     err_or_loss_after_opt += [float(result.fun)]
     err_or_loss_after_opt_by_raft_id[raft.id] = err_or_loss_after_opt[-1]
-    focus_and_tilt_err_funcs[raft.id] = focus_and_tilt_err_func
     logger.info(f'{prefix} initial --> optimized RMS {err_or_loss_text}: ' \
                 f'{err_or_loss_before_opt[-1]:5.3f} --> {err_or_loss_after_opt[-1]:5.3f}{err_or_loss_unit}')
 err_or_loss_colname = f'rms {err_or_loss_text}'
@@ -628,17 +632,26 @@ for raft in rafts2:
     these_robots.rename_column('idx', 'local robot idx')
     these_robots['raft idx'] = raft.id
     robot_centers = np.transpose([these_robots['x'], these_robots['y'], these_robots['z']])
-    focus_errors, tilt_errors = focus_and_tilt_err_funcs[raft.id](robot_centers)
+    focus_errors, tilt_errors = calc_focus_and_tilt_errors(raft)
     these_robots['focus error'] = focus_errors
     these_robots['chief ray error'] = tilt_errors
     raft_robot_tables += [these_robots]
 robots = vstack(raft_robot_tables)
 robots['global robot idx'] = np.arange(len(robots))
 robots = robots[robot_table_headers]
+if loss_functions_are_defined:
+    defocus_losses = defocus2loss(robots['focus error'])
+    tilt_losses = tilt2loss(robots['chief ray error'])
+    robots['throughput loss (defocus)'] = defocus_losses
+    robots['throughput loss (tilt error)'] = tilt_losses
+    robots['throughput loss (combined)'] = 1 - (1 - defocus_losses) * (1 - tilt_losses)
 logger.info(f'Generated table of {len(robots)} individual robot positions.')
-ideal_asphere_z = R2Z(robots['r'])
-ideal_asphere_nut = R2NUT(robots['r'])
-for key, unit in {'focus error': 'mm', 'chief ray error': 'deg'}.items():
+for key, unit in {'focus error': 'mm',
+                  'chief ray error': 'deg',
+                  'throughput loss (defocus)': '',
+                  'throughput loss (tilt error)': '',
+                  'throughput loss (combined)': '',
+                  }.items():
     argmax = robots[key].argmax()
     argmin = robots[key].argmin()
     prefix = 'robot centers -->'
