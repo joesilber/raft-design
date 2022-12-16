@@ -132,6 +132,7 @@ if force_CRD_to_zero:
     CRD2R_undefined = True
     logger.warning('no chief ray deviation defined, letting CRD(R)=0')
 vigR = focsurf['vigR']  # should be a scalar
+limit_radius = vigR if userargs.limit_radius <= 0 else userargs.limit_radius
 if 'z_sign' in focsurf:
     _R2Z = R2Z
     R2Z = lambda x: np.sign(focsurf['z_sign']) * _R2Z(x)
@@ -344,28 +345,36 @@ for row in t:
 # secondary vignette & wedge raft selection
 # (if applying a hard mechanical envelope limitation)
 remove = set()
-mechanical_limit = userargs.limit_radius + userargs.mechanical_radius_offset_limit
+mechanical_limit = limit_radius + userargs.mechanical_radius_offset_limit
+logger.info(f'Instrumented area limit radius = {limit_radius:.3f} mm')
 logger.info(f'Mechanical limit radius = {mechanical_limit:.3f} mm')
 max_radius_found = 0.0
 for i, raft in enumerate(rafts):
-    front_poly = np.transpose(raft.front_poly())
-    vertex_radii = np.hypot(front_poly[0], front_poly[1])
-    if any(vertex_radii > mechanical_limit):
+    max_instr_r = raft.max_front_vertex_radius(instr=True)
+    if max_instr_r > limit_radius:
         remove.add(i)
+        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to instrumented area extending to {max_instr_r:.3f} mm > {limit_radius:.3f} mm')
+    max_mech_r = raft.max_front_vertex_radius(instr=False)
+    if max_mech_r > mechanical_limit:
+        remove.add(i)
+        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area extending to {max_instr_r:.3f} mm > {mechanical_limit:.3f} mm')
     if userargs.mechanical_wedge_offset_limit and not_full_circle:
+        front_poly = np.transpose(raft.front_poly(instr=False))
         test_x = front_poly[0] - userargs.mechanical_wedge_offset_limit / np.cos(np.radians(userargs.wedge))
         test_y = front_poly[1] - userargs.mechanical_wedge_offset_limit
         vertex_angles = np.degrees(np.arctan2(test_y, test_x))
         if any(vertex_angles > max(0, userargs.wedge)):
-            remove.add(i) 
+            remove.add(i)
+            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area exceeding wedge envelope')
         if any(vertex_angles < min(0, userargs.wedge)):
             remove.add(i)
-    max_radius_found = max(min(max(vertex_radii),  mechanical_limit), max_radius_found)
+            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area exceeding wedge envelope')
 if userargs.hexagonal_tile:
     hex_sector_angles = [30 + 60*i for i in range(6)]  # normal to hexagon side
     sector_mins = [a - 30 for a in hex_sector_angles]
     sector_maxs = [a + 30 for a in hex_sector_angles]
-    hex_apothem = max_radius_found * math.sqrt(3)/2
+    max_mech_radius = max([raft.max_front_vertex_radius(instr=False) for i, raft in enumerate(rafts) if i not in remove])
+    hex_apothem = max_mech_radius * math.sqrt(3)/2
     for i, raft in enumerate(rafts):
         front_poly = np.transpose(raft.front_poly())
         vertex_angles = np.degrees(np.arctan2(front_poly[1], front_poly[0]))
@@ -583,7 +592,6 @@ for raft in rafts:
 t['neighbor_ids'] = neighbor_ids
 
 # output tables and plots
-limit_radius = vigR if userargs.limit_radius <= 0 else userargs.limit_radius
 logger.info(f'Exporting data and plots for layout with limit radius = {limit_radius:.3f}.')
 subselection = t['max_instr_vertex_radius'] <= limit_radius
 t2 = t[subselection]
