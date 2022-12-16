@@ -456,7 +456,7 @@ idx_focus, idx_tilt = 0, 1
 err_or_loss_before_opt, err_or_loss_after_opt = [], []
 err_or_loss_after_opt_by_raft_id = {}
 for i, raft in enumerate(rafts):
-    prefix = f'For raft {i:3} at r = {raft.r:7.3f} mm:'
+    prefix = f'For raft {i} at r = {raft.r:7.3f} mm:'
     points3D = raft.generate_local_robot_centers_no_offsets()
     offsets0 = [None, None]
     offsets0[idx_focus] = raft.focus_offset
@@ -507,8 +507,8 @@ if loss_functions_are_defined:
     err_or_loss_colname += ' due to defocus and tilt error'
 err_or_loss_colname = err_or_loss_colname.replace(' ', '_')
 t.rename_column('err_or_loss_placeholder', err_or_loss_colname)
-overall_err_or_loss_before_opt = (sum(err_or_loss_before_opt**2)/len(err_or_loss_before_opt))**0.5
-overall_err_or_loss_after_opt = (sum(err_or_loss_after_opt**2)/len(err_or_loss_after_opt))**0.5
+overall_err_or_loss_before_opt = (sum(np.power(err_or_loss_before_opt, 2))/len(err_or_loss_before_opt))**0.5
+overall_err_or_loss_after_opt = (sum(np.power(err_or_loss_after_opt, 2))/len(err_or_loss_after_opt))**0.5
 logger.info(f'Overall rms {err_or_loss_text} for {len(rafts)} rafts initial/final: ' \
             f'{overall_err_or_loss_before_opt:5.3f} --> {overall_err_or_loss_after_opt:5.3f}{err_or_loss_unit}')
 
