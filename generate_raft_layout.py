@@ -318,10 +318,13 @@ else:
 
 # table structure for raft positions and orientations
 t = Table(grid)
-t['radius'] = np.hypot(t['x0'], t['y0'])
-other_cols = {'z': float, 'precession': float, 'nutation': float, 'spin': float, 'id': int,
+t['r0'] = np.hypot(t['x0'], t['y0'])
+other_cols = {'x': float, 'y': float, 'z': float, 'r': float,
+              'precession': float, 'nutation': float, 'spin': float, 'id': int,
               'max_front_vertex_radius': float, 'min_front_vertex_radius': float,
-              'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float, }
+              'max_instr_vertex_radius': float, 'min_instr_vertex_radius': float,
+              'err_or_loss_placeholder': float,
+              }
 for col, typecast in other_cols.items():
     t[col] = [typecast(0)]*len(t)
 
@@ -353,11 +356,11 @@ for i, raft in enumerate(rafts):
     max_instr_r = raft.max_front_vertex_radius(instr=True)
     if max_instr_r > limit_radius:
         remove.add(i)
-        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to instrumented area extending to {max_instr_r:.3f} mm > {limit_radius:.3f} mm')
+        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to instrumented area extending to {max_instr_r:.3f} mm > {limit_radius:.3f} mm')
     max_mech_r = raft.max_front_vertex_radius(instr=False)
     if max_mech_r > mechanical_limit:
         remove.add(i)
-        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area extending to {max_instr_r:.3f} mm > {mechanical_limit:.3f} mm')
+        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area extending to {max_instr_r:.3f} mm > {mechanical_limit:.3f} mm')
     if userargs.mechanical_wedge_offset_limit and not_full_circle:
         front_poly = np.transpose(raft.front_poly(instr=False))
         test_x = front_poly[0] - userargs.mechanical_wedge_offset_limit / np.cos(np.radians(userargs.wedge))
@@ -365,10 +368,10 @@ for i, raft in enumerate(rafts):
         vertex_angles = np.degrees(np.arctan2(test_y, test_x))
         if any(vertex_angles > max(0, userargs.wedge)):
             remove.add(i)
-            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area exceeding wedge envelope')
+            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
         if any(vertex_angles < min(0, userargs.wedge)):
             remove.add(i)
-            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r} mm due to mechanical area exceeding wedge envelope')
+            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
 if userargs.hexagonal_tile:
     hex_sector_angles = [30 + 60*i for i in range(6)]  # normal to hexagon side
     sector_mins = [a - 30 for a in hex_sector_angles]
@@ -391,7 +394,7 @@ for i in sorted(remove, reverse=True):
 logger.info(f'Removed {len(remove)} rafts which exceeded limit settings from initial grid of {len(grid["x0"])}.')
 
 # possibly delete additional rafts, and refresh ids
-t.sort('radius')  # not important, just a trick to give the raft ids some sort of readability
+t.sort('r0')  # not important, just a trick to give the raft ids some sort of readability
 selected_ordered_rafts = t['id']
 rafts = [rafts[i] for i in selected_ordered_rafts]
 for i, raft in enumerate(rafts):
@@ -449,8 +452,9 @@ if not skip_interference_checks:
 # optimize defocus and tilt
 optimize_focus = True  # for consistency of form below
 optimize_tilt = loss_functions_are_defined
-idx_focus = 0
-idx_tilt = 1
+idx_focus, idx_tilt = 0, 1
+err_or_loss_before_opt, err_or_loss_after_opt = [], []
+err_or_loss_after_opt_by_raft_id = {}
 for i, raft in enumerate(rafts):
     prefix = f'For raft {i:3} at r = {raft.r:7.3f} mm:'
     points3D = raft.generate_local_robot_centers_no_offsets()
@@ -487,19 +491,26 @@ for i, raft in enumerate(rafts):
     result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
     if optimize_focus:
         raft.focus_offset = float(result.x[idx_focus])
-        logger.info(f'{prefix} initial   focus offset    = {offsets0[idx_focus]:+6.3f} mm')
-        logger.info(f'{prefix} optimized focus offset    = {raft.focus_offset:+6.3f} mm')
+        logger.info(f'{prefix} initial/optimized focus offset: {offsets0[idx_focus]:+6.3f} --> {raft.focus_offset:+6.3f} mm')
     if optimize_tilt:
         raft.tilt_offset = float(result.x[idx_tilt])
-        logger.info(f'{prefix} initial   tilt  offset    = {offsets0[idx_tilt]:+6.3f} deg')
-        logger.info(f'{prefix} optimized tilt  offset    = {raft.tilt_offset:+6.3f} deg')
+        logger.info(f'{prefix} initial/optimized tilt offset: {offsets0[idx_tilt]:+6.3f} --> {raft.tilt_offset:+6.3f} deg')
     err_or_loss_text = 'throughput loss' if loss_functions_are_defined else 'defocus'
-    err_or_loss_before_opt = rms_err_or_loss(offsets=offsets0)
-    err_or_loss_after_opt = float(result.fun)
-    logger.info(f'{prefix} initial   {err_or_loss_text} = {err_or_loss_before_opt*100:5.2f}% RMS')
-    logger.info(f'{prefix} optimized {err_or_loss_text} = {err_or_loss_after_opt*100:5.2f}% RMS')
-    if err_or_loss_after_opt > 0.1:
-        rms_err_or_loss(offsets0)
+    err_or_loss_unit = '' if loss_functions_are_defined else ' mm'
+    err_or_loss_before_opt += [rms_err_or_loss(offsets=offsets0)]
+    err_or_loss_after_opt += [float(result.fun)]
+    err_or_loss_after_opt_by_raft_id[raft.id] = err_or_loss_after_opt[-1]
+    logger.info(f'{prefix} initial/optimized RMS {err_or_loss_text}: ' \
+                f'{err_or_loss_before_opt[-1]:5.3f} --> {err_or_loss_after_opt[-1]:5.3f}{err_or_loss_unit}')
+err_or_loss_colname = f'rms {err_or_loss_text}'
+if loss_functions_are_defined:
+    err_or_loss_colname += ' due to defocus and tilt error'
+err_or_loss_colname = err_or_loss_colname.replace(' ', '_')
+t.rename_column('err_or_loss_placeholder', err_or_loss_colname)
+overall_err_or_loss_before_opt = (sum(err_or_loss_before_opt**2)/len(err_or_loss_before_opt))**0.5
+overall_err_or_loss_after_opt = (sum(err_or_loss_after_opt**2)/len(err_or_loss_after_opt))**0.5
+logger.info(f'Overall rms {err_or_loss_text} for {len(rafts)} rafts initial/final: ' \
+            f'{overall_err_or_loss_before_opt:5.3f} --> {overall_err_or_loss_after_opt:5.3f}{err_or_loss_unit}')
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
@@ -576,7 +587,7 @@ for raft in rafts:
     row = t[row_idx]
     row['x'] = raft.x
     row['y'] = raft.y
-    row['radius'] = raft.r
+    row['r'] = raft.r
     row['z'] = raft.z
     row['precession'] = raft.precession
     row['nutation'] = raft.nutation
@@ -586,6 +597,7 @@ for raft in rafts:
     row['min_front_vertex_radius'] = raft.min_front_vertex_radius(instr=False)
     row['max_instr_vertex_radius'] = raft.max_front_vertex_radius(instr=True)
     row['min_instr_vertex_radius'] = raft.min_front_vertex_radius(instr=True)
+    row['rms_throughput_loss_due_to_defocus_and_tilt_error'] = err_or_loss_after_opt_by_raft_id[raft.id]
 neighbor_ids = []
 for raft in rafts:
     neighbor_ids += ['; '.join(str(n.id) for n in raft.neighbors)]
