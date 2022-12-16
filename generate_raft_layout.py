@@ -458,6 +458,7 @@ err_or_loss_after_opt_by_raft_id = {}
 for i, raft in enumerate(rafts):
     prefix = f'For raft {i} at r = {raft.r:7.3f} mm:'
     points3D = raft.generate_local_robot_centers_no_offsets()
+    placed0 = raft.place_poly(points3D)
     offsets0 = [None, None]
     offsets0[idx_focus] = raft.focus_offset
     offsets0[idx_tilt] = raft.tilt_offset
@@ -476,9 +477,7 @@ for i, raft in enumerate(rafts):
             ideal_directions = []  # direction each robot would ideally be mounted
             ideal_nutations = R2NUT(r)
             ideal_precessions = np.degrees(np.arctan2(placed[:,1], placed[:,0]))
-            for i in range(len(points3D)):
-                rot = Rotation.from_euler('ZYZ', (ideal_precessions[i], ideal_nutations[i], -ideal_precessions[i]), degrees=True)
-                ideal_directions += [rot.apply([0, 0, 1])]
+            ideal_directions = [Raft.pn2zvec(ideal_precessions[i], ideal_nutations[i]) for i in range(len(ideal_precessions))]
             ideal_directions = np.transpose(ideal_directions)
             denominator = np.linalg.norm(common_robots_direction) * np.linalg.norm(ideal_directions, axis=0)  # norms not strictly necessary since these ought to be unit vectors, but kept here as good practice in case they aren't
             tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / denominator))
@@ -491,16 +490,16 @@ for i, raft in enumerate(rafts):
     result = optimize.least_squares(fun=rms_err_or_loss, x0=offsets0)
     if optimize_focus:
         raft.focus_offset = float(result.x[idx_focus])
-        logger.info(f'{prefix} initial/optimized focus offset: {offsets0[idx_focus]:+6.3f} --> {raft.focus_offset:+6.3f} mm')
+        logger.info(f'{prefix} initial --> optimized focus offset: {offsets0[idx_focus]:+6.3f} --> {raft.focus_offset:+6.3f} mm')
     if optimize_tilt:
         raft.tilt_offset = float(result.x[idx_tilt])
-        logger.info(f'{prefix} initial/optimized tilt offset: {offsets0[idx_tilt]:+6.3f} --> {raft.tilt_offset:+6.3f} deg')
+        logger.info(f'{prefix} initial --> optimized tilt offset: {offsets0[idx_tilt]:+6.3f} --> {raft.tilt_offset:+6.3f} deg')
     err_or_loss_text = 'throughput loss' if loss_functions_are_defined else 'defocus'
     err_or_loss_unit = '' if loss_functions_are_defined else ' mm'
     err_or_loss_before_opt += [rms_err_or_loss(offsets=offsets0)]
     err_or_loss_after_opt += [float(result.fun)]
     err_or_loss_after_opt_by_raft_id[raft.id] = err_or_loss_after_opt[-1]
-    logger.info(f'{prefix} initial/optimized RMS {err_or_loss_text}: ' \
+    logger.info(f'{prefix} initial --> optimized RMS {err_or_loss_text}: ' \
                 f'{err_or_loss_before_opt[-1]:5.3f} --> {err_or_loss_after_opt[-1]:5.3f}{err_or_loss_unit}')
 err_or_loss_colname = f'rms {err_or_loss_text}'
 if loss_functions_are_defined:
@@ -509,8 +508,8 @@ err_or_loss_colname = err_or_loss_colname.replace(' ', '_')
 t.rename_column('err_or_loss_placeholder', err_or_loss_colname)
 overall_err_or_loss_before_opt = (sum(np.power(err_or_loss_before_opt, 2))/len(err_or_loss_before_opt))**0.5
 overall_err_or_loss_after_opt = (sum(np.power(err_or_loss_after_opt, 2))/len(err_or_loss_after_opt))**0.5
-logger.info(f'Overall rms {err_or_loss_text} for {len(rafts)} rafts initial/final: ' \
-            f'{overall_err_or_loss_before_opt:5.3f} --> {overall_err_or_loss_after_opt:5.3f}{err_or_loss_unit}')
+logger.info(f'Initial --> optimized overall rms {err_or_loss_text} for {len(rafts)} rafts : ' \
+            f'{overall_err_or_loss_before_opt:.6f} --> {overall_err_or_loss_after_opt:.6f}{err_or_loss_unit}')
 
 # gap assessment
 gap_mag_keys = ['min_gap_front', 'min_gap_rear', 'max_gap_front', 'max_gap_rear']
@@ -734,7 +733,7 @@ robots.write(robots_filename, overwrite=True)
 logger.info(f'Saved robots data table to {os.path.abspath(robots_filename)}')
 
 # print out more statistics
-print_stats(t2, gap_mag_keys + ['radius'])
+print_stats(t2, gap_mag_keys + ['r'])
 for key, desc in {'front': 'raft outline', 'instr': 'instrumented area'}.items():
     maxval = t2[f'max_{key}_vertex_radius'].max()
     raftid = t2[t2[f'max_{key}_vertex_radius'].argmax()]['id']
