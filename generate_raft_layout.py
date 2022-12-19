@@ -357,11 +357,11 @@ for i, raft in enumerate(rafts):
     max_instr_r = raft.max_front_vertex_radius(instr=True)
     if max_instr_r > limit_radius:
         remove.add(i)
-        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to instrumented area extending to {max_instr_r:.3f} mm > {limit_radius:.3f} mm')
+        logger.info(f'Removing raft {i+1} of {len(rafts)} at r = {raft.r:.3f} mm due to instrumented area extending to {max_instr_r:.3f} mm > {limit_radius:.3f} mm')
     max_mech_r = raft.max_front_vertex_radius(instr=False)
     if max_mech_r > mechanical_limit:
         remove.add(i)
-        logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area extending to {max_instr_r:.3f} mm > {mechanical_limit:.3f} mm')
+        logger.info(f'Removing raft {i+1} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area extending to {max_instr_r:.3f} mm > {mechanical_limit:.3f} mm')
     if userargs.mechanical_wedge_offset_limit and not_full_circle:
         front_poly = np.transpose(raft.front_poly(instr=False))
         test_x = front_poly[0] - userargs.mechanical_wedge_offset_limit / np.cos(np.radians(userargs.wedge))
@@ -369,10 +369,10 @@ for i, raft in enumerate(rafts):
         vertex_angles = np.degrees(np.arctan2(test_y, test_x))
         if any(vertex_angles > max(0, userargs.wedge)):
             remove.add(i)
-            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
+            logger.info(f'Removing raft {i+1} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
         if any(vertex_angles < min(0, userargs.wedge)):
             remove.add(i)
-            logger.info(f'Removing raft {i} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
+            logger.info(f'Removing raft {i+1} of {len(rafts)} at r = {raft.r:.3f} mm due to mechanical area exceeding wedge envelope')
 if userargs.hexagonal_tile:
     hex_sector_angles = [30 + 60*i for i in range(6)]  # normal to hexagon side
     sector_mins = [a - 30 for a in hex_sector_angles]
