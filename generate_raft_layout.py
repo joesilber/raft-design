@@ -26,11 +26,6 @@ timestamp_fmt = '%Y%m%dT%H%M%S'
 timestamp = datetime.now().astimezone().strftime(timestamp_fmt)
 interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=False, fill_value='extrapolate')
 
-logdir = os.getcwd()
-logname = f'{timestamp}_generate_raft_layout.log'
-logpath = os.path.join(logdir, logname)
-logger, _, _ = simple_logger.start_logger(logpath)
-
 # GEOMETRY OF FOCAL SURFACE DESIGNS
 # ---------------------------------
 # INPUTS:
@@ -75,7 +70,7 @@ parser.add_argument('-mwl', '--mechanical_wedge_offset_limit', type=float, defau
 parser.add_argument('-hex', '--hexagonal_tile', action='store_true', help='limit included rafts to a hexagon-shaped tile. the hexagon inscribes a circle whose radius is the maximum mechanical raft radius point (as determined by applying any other limit settings)')
 parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
-parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, minimum gap between rafts')
+parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, nominal minimum gap between rafts (in the initial hexagonal grid; note that focus and chief-ray optimization will alter the final output)')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=2.5, help='mm, chamfer at triangle tips')
 parser.add_argument('-ic', '--instr_chamfer', type=float, default=8.5, help='mm, chamfer to instrumented area of raft')
 parser.add_argument('-iw', '--instr_wall', type=float, default=0.3, help='mm, shield wall thickness to instrumented area of raft (argue 0 to have no wall)')
@@ -93,6 +88,12 @@ transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
 parser.add_argument('-t', '--transforms', action='append', help=f'specify custom transformations for specific rafts (in mm and deg), formatted like {transform_template}. The \'id\' key references a specific raft to be adjusted, which presumably you know from inspecting results a previous, otherwise-identical, run of this same code. To adjust multiple rafts, just repeat the command, like: {example_mult_transform_args}. Hint: you must enclose each dict in " at the command line, and use \' around keys')
 userargs = parser.parse_args()
+
+# start up logger
+logdir = os.getcwd()
+logname = f'{timestamp}_generate_raft_layout.log'
+logpath = os.path.join(logdir, logname)
+logger, _, _ = simple_logger.start_logger(logpath)
 logger.info(f'User inputs: {userargs}')
 
 # validate the custom transform input
