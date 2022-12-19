@@ -84,7 +84,7 @@ parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='
 parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 parser.add_argument('-tss', '--trillium_spacing_shift', action='store_true', help='shift spacing of rafts as done in Trillium patterning')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
-transform_keymap = {'dx': 'x', 'dy': 'y', 'dspin': 'spin0'}
+transform_keymap = {'dx': 'x0', 'dy': 'y0', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
 parser.add_argument('-t', '--transforms', action='append', help=f'specify custom transformations for specific rafts (in mm and deg), formatted like {transform_template}. The \'id\' key references a specific raft to be adjusted, which presumably you know from inspecting results a previous, otherwise-identical, run of this same code. To adjust multiple rafts, just repeat the command, like: {example_mult_transform_args}. Hint: you must enclose each dict in " at the command line, and use \' around keys')
 userargs = parser.parse_args()
