@@ -16,6 +16,7 @@ class Raft:
                  outer_profile=None, instr_profile=None,
                  r2nut=None, r2z=None, sphR=math.inf,
                  robot_pitch=6.2, robot_max_extent=4.4,
+                 n_robots_override=0,
                  ):
         '''
         x0 ... [mm] x location of center of front triangle, *not* including tilt and focus offset compensations
@@ -31,6 +32,7 @@ class Raft:
                  sphR > 0 means concave, sphR < 0 means convex, sphR ~ infinity means flat
         robot_pitch ... [mm] center-to-center distance between robots within the raft
         robot_max_extent ... [mm] local to a robot, max radius of any mechanical part at full extension
+        n_robots_override ... overrrides autocalculation of number of robots per raft
         '''
         global _raft_id_counter
         self.id = _raft_id_counter
@@ -48,6 +50,7 @@ class Raft:
         self.sphR = sphR
         self.robot_pitch = robot_pitch
         self.robot_max_extent = robot_max_extent
+        self.n_robots_override = n_robots_override
 
     @property
     def x(self):
@@ -115,7 +118,10 @@ class Raft:
     @property
     def n_robots(self):
         '''number of robots on this raft'''
-        return len(self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch))
+        if self.n_robots_override:
+            return self.n_robots_override
+        else:
+            return len(self.instr_profile.generate_robot_pattern(pitch=self.robot_pitch))
 
     def front_poly(self, instr=False):
         '''Nx3 list of polygon vertices giving raft profile at front (i.e. at focal

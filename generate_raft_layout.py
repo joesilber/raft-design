@@ -68,7 +68,7 @@ parser.add_argument('-r', '--limit_radius', type=float, default=0, help='maximum
 parser.add_argument('-mrl', '--mechanical_radius_offset_limit', type=float, default=np.inf, help='mm, enforce restriction that no mechanical part of raft can exceed "limit_radius" plus this offset')
 parser.add_argument('-mwl', '--mechanical_wedge_offset_limit', type=float, default=0.0, help='mm, if "wedge" argument < 360 deg, then no part of raft can exceed the angular wedge envelope minus this linear offset')
 parser.add_argument('-hex', '--hexagonal_tile', action='store_true', help='limit included rafts to a hexagon-shaped tile. the hexagon inscribes a circle whose radius is the maximum mechanical raft radius point (as determined by applying any other limit settings)')
-parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of a raft triangle')
+parser.add_argument('-b', '--raft_tri_base', type=float, default=80.0, help='mm, length of base edge of raft triangle')
 parser.add_argument('-l', '--raft_length', type=float, default=657.0, help='mm, length of raft from origin (at center fiber tip) to rear')
 parser.add_argument('-g', '--raft_gap', type=float, default=3.0, help='mm, nominal minimum gap between rafts (in the initial hexagonal grid; note that focus and chief-ray optimization will alter the final output)')
 parser.add_argument('-c', '--raft_chamfer', type=float, default=2.5, help='mm, chamfer at triangle tips')
@@ -83,6 +83,7 @@ parser.add_argument('-rr', '--robot_reach', type=float, default=3.6, help='mm, l
 parser.add_argument('-re', '--robot_max_extent', type=float, default=4.4, help='mm, local to a robot, max radius of any mechanical part at full extension')
 parser.add_argument('-igr', '--ignore_chief_ray_dev', action='store_true', help='ignore chief ray deviation in patterning')
 parser.add_argument('-tss', '--trillium_spacing_shift', action='store_true', help='shift spacing of rafts as done in Trillium patterning')
+parser.add_argument('-nro', '--num_robots_per_raft_override', type=int, default=0, help=f'override autocalculation of total number of robots per raft')
 transform_template = {'id':-1, 'dx':0.0, 'dy':0.0, 'dspin':0.0}
 transform_keymap = {'dx': 'x0', 'dy': 'y0', 'dspin': 'spin0'}
 example_mult_transform_args = '-t "{\'id\':1, \'dx\':0.5}" -t "{\'id\':2, \'dx\':-1.7}"'
@@ -342,6 +343,7 @@ for row in t:
                 sphR=sphR*sphR_sign,
                 robot_pitch=userargs.robot_pitch,
                 robot_max_extent=userargs.robot_max_extent,
+                n_robots_override=userargs.num_robots_per_raft_override,
                 )
     row['id'] = raft.id  # note this will be refreshed later
     rafts += [raft]

@@ -30,6 +30,57 @@
         },
 
         {
+            "name": "generate - DESI2 - 34 trilliums / raft - 1/6",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "--focal_surface_number", "1",
+                "--limit_radius", "421.0", // also try 426 to get the middle outer raft included
+                "--raft_gap", "1.0",
+                "--raft_length", "186",
+                "--wedge", "60",
+                "--raft_tri_base", "92.4",
+                "--num_robots_per_raft_override", "102",
+                ],
+        },
+        
+        {
+            "name": "generate - DESI2 - 21 trilliums / raft - 1/6",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "--focal_surface_number", "1",
+                "--limit_radius", "421.0",
+                "--raft_gap", "1.0",
+                "--raft_length", "186",
+                "--wedge", "60",
+                "--raft_tri_base", "73.8",
+                "--num_robots_per_raft_override", "63",
+                ],
+        },
+
+        {
+            "name": "generate - DESI2 - offset - 21 trilliums / raft - full",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "--focal_surface_number", "1",
+                "--limit_radius", "421.0",
+                "--raft_gap", "1.0",
+                "--raft_length", "186",
+                "--wedge", "360",
+                "--raft_tri_base", "73.8",
+                "--num_robots_per_raft_override", "63",
+                "--offset", "tri",
+                ],
+        },
+       {
             "name": "generate - DESI2 - 11,250 - 1/6",
             "type": "python",
             "request": "launch",
