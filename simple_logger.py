@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Some logging boilerplate code.
+Contact: Joe Silber <jhsilber@lbl.gov>
 """
 # set up a log file
 import logging
