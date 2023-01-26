@@ -9,7 +9,9 @@ from astropy.table import Table
 _raft_id_counter = 0
 
 class Raft:
-    '''Represents a single triangular raft.'''
+    '''Represents the geometry of a single triangular raft of fiber positioning robots.
+    Contact: Joe Silber <jhsilber@lbl.gov>
+    '''
     
     def __init__(self, x0=0., y0=0., spin0=0.,
                  focus_offset=0., tilt_offset=0.,
