@@ -1,3 +1,9 @@
+'''
+This module represents geometry of a single triangular raft of fiber positioning robots.
+Developed in 2022 for focal plane layout code for MegaMapper and DESI2 instrument designs.
+Contact: Joe Silber <jhsilber@lbl.gov>
+'''    
+
 import math
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -10,7 +16,6 @@ _raft_id_counter = 0
 
 class Raft:
     '''Represents the geometry of a single triangular raft of fiber positioning robots.
-    Contact: Joe Silber <jhsilber@lbl.gov>
     '''
     
     def __init__(self, x0=0., y0=0., spin0=0.,
