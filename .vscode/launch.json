@@ -166,7 +166,7 @@
         },
         
         {
-            "name": "generate - DESI2 - trillium - petal",
+            "name": "generate - DESI2 - trillium - petal - hextile",
             "type": "python",
             "request": "launch",
             "module": "generate_raft_layout",
@@ -188,6 +188,31 @@
                 "-hex",
                 ],
         },
+
+        {
+            "name": "generate - DESI2 - trillium - petal",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "1",
+                "-r", "410.0",
+                "-g", "1.0",
+                "-l", "252", // approx 166 mechanical + 86 electrical (contacts? connectors? assume like DESI FIPOS)
+                "-w", "36",
+                "-c", "2.2",
+                "-iw", "0.0",
+                "-b", "13.821",
+                "-tss",
+                "-gdx", "0.0",
+                "-gdy", "0.5",
+                //"-mrl", "0.5",
+                "-mwl", "0.3",
+                //"-hex",
+                ],
+        },
+
 
     ]
 }
