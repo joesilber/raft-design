@@ -690,7 +690,8 @@ if not has_shield_wall:
         translated = continuous_value_mm - areagrid_min_mm
         scaled = translated / areagrid_spacing
         rounded = int(round(scaled))
-        return rounded
+        length_limited = min(rounded, len(areagrid_mm)-1)
+        return length_limited 
 
     # fill the grid with coverage
     rmax = userargs.robot_reach
