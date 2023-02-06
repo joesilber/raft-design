@@ -44,6 +44,9 @@ focal_surfaces = {
         'file': 'MM1536-cfg1-20210910.csv',
         'z_sign': -1,
         'vigR': 613.2713,
+        # to-do: add defocus2blur based on f-number
+        # to-do: add blur2loss
+        # to-do: add tilt2loss
         },
     'DESI':
         {'description': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
@@ -442,7 +445,7 @@ for raft in rafts:
         y2_this = r2_this * np.sin(q_this)
         dist = np.hypot(x2_others - x2_this, y2_others - y2_this)
     else:
-        dist = np.hypot(t['x'] - raft.x, t['y'] - raft.y)
+        dist = np.hypot(t['x0'] - raft.x, t['y0'] - raft.y)
     neighbor_selection = dist < neighbor_selection_radius
     neighbor_selection &= raft.id != t['id']  # skip self
     neighbor_selection_ids = np.flatnonzero(neighbor_selection)
@@ -493,7 +496,7 @@ for i, raft in enumerate(rafts):
             rms_throughput = (sum(np.power(throughput, 2))/len(throughput))**0.5
             output = 1 - rms_throughput
         else:
-            rms_defocus = (sum(np.powre(focus_errors, 2))/len(focus_errors))**0.5
+            rms_defocus = (sum(np.power(focus_errors, 2))/len(focus_errors))**0.5
             output = rms_defocus
         raft.focus_offset = focus0
         raft.tilt_offset = tilt0
@@ -654,10 +657,13 @@ if loss_functions_are_defined:
     robots['throughput loss (tilt error)'] = tilt_losses
     robots['throughput (combined)'] = (1 - defocus_losses) * (1 - tilt_losses)
 logger.info(f'Generated table of {len(robots)} individual robot positions.')
-for key, unit in {'focus error': 'mm',
-                  'chief ray error': 'deg',
-                  'throughput (combined)': '',
-                  }.items():
+params_to_summarize = {'focus error': 'mm',
+                       'chief ray error': 'deg',
+                       'throughput (combined)': '',
+                      }
+for key, unit in params_to_summarize.items():
+    if key not in robots:
+        continue
     argmax = robots[key].argmax()
     argmin = robots[key].argmin()
     prefix = 'robot centers -->'
