@@ -481,7 +481,13 @@ def calc_focus_and_tilt_errors(raft):
     ideal_directions = [Raft.pn2zvec(ideal_precessions[i], ideal_nutations[i]) for i in range(len(ideal_precessions))]
     ideal_directions = np.transpose(ideal_directions)
     denominator = np.linalg.norm(common_robots_direction) * np.linalg.norm(ideal_directions, axis=0)  # norms not strictly necessary since these ought to be unit vectors, but kept here as good practice in case they aren't
-    tilt_errors = np.degrees(np.arccos(np.dot(common_robots_direction, ideal_directions) / denominator))
+    arccos_arg = np.dot(common_robots_direction, ideal_directions) / denominator
+    for limit in [-1.0, 1.0]:
+        sign = np.sign(limit)
+        limit_tol = 1e-10
+        arccos_arg[np.logical_and(arccos_arg > limit, arccos_arg < limit + sign*limit_tol)] = limit
+    arccos_arg[np.logical_and(arccos_arg < -1.0, arccos_arg < 1.0 + 1e-10)] = 1.0
+    tilt_errors = np.degrees(np.arccos(arccos_arg))
     return focus_errors, tilt_errors
 for i, raft in enumerate(rafts):
     prefix = f'For raft {i} at r = {raft.r:7.3f} mm:'
