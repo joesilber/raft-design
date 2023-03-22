@@ -44,7 +44,7 @@ focal_surfaces = {
         'file': 'MM1536-cfg1-20210910.csv',
         'z_sign': -1,
         'vigR': 613.2713,
-        'f-number': 3.6,  # as stated in RFI
+        'f-number': 3.57,  # per 2023-03-21 email from Schlegel. Stated as "3.6" in RFI (2019-12-13) 
         'blur2loss': 'DESI-like',
         'tilt2loss': 'DESI-like',
         },
