@@ -213,6 +213,20 @@
                 ],
         },
 
+        {
+            "name": "generate - hectospec - full - noshield",
+            "type": "python",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "--focal_surface_number", "2",
+                "--raft_gap", "1.0",
+                "--raft_length", "186",
+                "--wedge", "360",
+                "--instr_wall", "0.0",
+                ],
+        },
 
     ]
 }
