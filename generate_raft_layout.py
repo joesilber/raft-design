@@ -38,6 +38,7 @@ interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=F
 #   S (mm) ... integrated distance along surface from optical axis
 #   NORM (deg) ... normal angle (rotation from x-axis toward z-axis, i.e. in negative direction about y-axis)
 #   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis)
+
 focal_surfaces = {
     'MM1536-cfg1-20210910':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
@@ -48,6 +49,7 @@ focal_surfaces = {
         'blur2loss': 'DESI-like',
         'tilt2loss': 'DESI-like',
         },
+
     'DESI':
         {'description': 'DESI Echo22 corrector, c.f. DESI-0530-v18',
         'Z': Polynomial([-2.33702E-05, 6.63924E-06, -1.00884E-04, 1.24578E-08, -4.82781E-10, 1.61621E-12, -5.23944E-15, 2.91680E-17, -7.75243E-20, 6.74215E-23]),
@@ -61,11 +63,13 @@ focal_surfaces = {
                                     deg=6,
                                     ),  # input units deg, I am fitting here since the polynomial coefficients provided by Excel chart in Fiber Tilt tab are poor
         },
+
     'Hectospec':
         {'description': 'Hectospec corrector, c.f. SPIE Vol. 5492, 769 (2004), Table 1',
         'Z': lambda r: r**2 / (-3404.0 * (1 + (1 - (1 + (-665.0)) * (r/(-3404.0))**2 )**0.5)),
+        'CRD': lambda r: np.zeros_like(r),  # [JHS 2023-05-12] didn't see any mention of this in SPIE paper, setting to zero
         'z_sign': 1,
-        'vigR': 611.13 / 2,
+        'vigR': 611.1 / 2,
         'f-number': 5.0,
         'blur2loss': 'DESI-like',
         'tilt2loss': 'DESI-like',
