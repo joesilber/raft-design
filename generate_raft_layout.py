@@ -65,7 +65,7 @@ focal_surfaces = {
         {'description': 'Hectospec corrector, c.f. SPIE Vol. 5492, 769 (2004), Table 1',
         'Z': lambda r: r**2 / (-3404.0 * (1 + (1 - (1 + (-665.0)) * (r/(-3404.0))**2 )**0.5)),
         'z_sign': 1,
-        'vigR': 611.13,
+        'vigR': 611.13 / 2,
         'f-number': 5.0,
         'blur2loss': 'DESI-like',
         'tilt2loss': 'DESI-like',
