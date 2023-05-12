@@ -61,6 +61,15 @@ focal_surfaces = {
                                     deg=6,
                                     ),  # input units deg, I am fitting here since the polynomial coefficients provided by Excel chart in Fiber Tilt tab are poor
         },
+    'Hectospec':
+        {'description': 'Hectospec corrector, c.f. SPIE Vol. 5492, 769 (2004), Table 1',
+        'Z': lambda r: r**2 / (-3404.0 * (1 + (1 - (1 + (-665.0)) * (r/(-3404.0))**2 )**0.5)),
+        'z_sign': 1,
+        'vigR': 611.13,
+        'f-number': 5.0,
+        'blur2loss': 'DESI-like',
+        'tilt2loss': 'DESI-like',
+        },
     }
 for surf in focal_surfaces.values():
     # fiber defocus to blur conversion is defined like in DESI-0347
