@@ -1,7 +1,7 @@
-﻿# Mayall/Blanco-compatible 6m primary design with spherical focal surface,
-# Provided to Joe Silber by Pat Jelinsky 2024-02-14,
-# Units for R are mm,
-# Units for CRD (chief ray deviation) are deg,
+# Mayall/Blanco-compatible 6m primary design with spherical focal surface
+# Provided to Joe Silber by Pat Jelinsky 2024-02-14
+# Units for R are mm
+# Units for CRD (chief ray deviation) are deg
 R,CRD
 0.0,0.000499179
 2.042660669,0.003955128
