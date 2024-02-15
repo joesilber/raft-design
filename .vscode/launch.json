@@ -22,9 +22,10 @@
             "module": "generate_raft_layout",
             "justMyCode": true,
             "args": [
-                "-f", "3",
-                "-r", "620.0",
-                "-w", "60",
+                "--focal_surface_number", "3",
+                "--limit_radius", "620.0",
+                "--wedge", "60",
+                
                 ],
         },
 
