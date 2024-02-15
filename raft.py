@@ -397,6 +397,7 @@ class RaftProfile:
             best_pattern_dist = -np.inf
             best_pattern_key = ''
             profile_polygon = self.polygon2D
+            patterns = {k: v for k, v in patterns.items() if v}  # exclude unformed patterns
             for key, pattern in patterns.items():
                 min_dist_robot_ctr_to_profile = np.inf
                 np_pattern = np.array(pattern)
