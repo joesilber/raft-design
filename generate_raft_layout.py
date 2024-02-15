@@ -40,17 +40,6 @@ interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=F
 #   NUT (deg) ... nutation angle, equivalent to chief ray. NUT = -(NORM + CRD). (rotation from z-axis toward x-axis, i.e. in positive direction about y-axis)
 
 focal_surfaces = {
-     'Jelinsky6m-20240214':
-        {'description': 'Mayall/Blanco compatible design with 6m primary and spherical focal surface, 2024-02-14',
-        'Z': lambda r: (12657**2 - r**2)**0.5 - 12657,  # defined here with more negative Z being toward the secondary
-        'CRD_file': 'Jelinsky6m-CRD-20240215.csv',
-        'z_sign': -1,  # applies the convention where +z is toward the fiber tips
-        'vigR': 409.4,
-        'f-number': 3.62002,  # average over whole focal surface
-        'blur2loss': 'DESI-like',
-        'tilt2loss': 'DESI-like',
-        },
-
    'MM1536-cfg1-20210910':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
         'Z_file': 'MM1536-cfg1-20210910.csv',
@@ -86,7 +75,19 @@ focal_surfaces = {
         'blur2loss': 'DESI-like',
         'tilt2loss': 'DESI-like',
         },
-    }
+
+    'Jelinsky6m-20240214':
+        {'description': 'Mayall/Blanco compatible design with 6m primary and spherical focal surface, 2024-02-14',
+        'Z': lambda r: (12657**2 - r**2)**0.5 - 12657,  # defined here with more negative Z being toward the secondary
+        'CRD_file': 'Jelinsky6m-CRD-20240215.csv',
+        'z_sign': -1,  # applies the convention where +z is toward the fiber tips
+        'vigR': 409.4,
+        'f-number': 3.62002,  # average over whole focal surface
+        'blur2loss': 'DESI-like',
+        'tilt2loss': 'DESI-like',
+        },
+
+   }
 for surf in focal_surfaces.values():
     # fiber defocus to blur conversion is defined like in DESI-0347
     # i.e. due to spot size growing with f-number cone (1-d sigma radius of a top hat spot with diameter = defocus/2/f#/3)
