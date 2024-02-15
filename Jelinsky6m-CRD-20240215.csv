@@ -3,7 +3,7 @@
 # Units for R are mm,
 # Units for CRD (chief ray deviation) are deg,
 R,CRD
-0,0.000499179
+0.0,0.000499179
 2.042660669,0.003955128
 4.085324701,0.007862974
 6.127989774,0.011781519
