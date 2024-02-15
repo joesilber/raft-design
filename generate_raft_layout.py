@@ -42,8 +42,9 @@ interp1d = lambda x, y: interpolate.interp1d(x, y, kind='linear', bounds_error=F
 focal_surfaces = {
      'Jelinsky6m-20240214':
         {'description': 'Mayall/Blanco compatible design with 6m primary and spherical focal surface, 2024-02-14',
-        'Z': lambda r: -(12657**2 - r**2)**0.5 + 12657  # defined here with more positive Z being toward the secondary (opposite from Jelinsky), i.e. the convention where +z is toward the fiber tips
-        'CRD': Polynomial([0, 3.4019e-3, -2.8068e-5, 4.4307e-7, -2.4009e-9, 5.1158e-12, -3.9825e-15]),
+        'Z': lambda r: (12657**2 - r**2)**0.5 - 12657,  # defined here with more negative Z being toward the secondary
+        'CRD_file': 'Jelinsky6m-CRD-20240215.csv',
+        'z_sign': -1,  # applies the convention where +z is toward the fiber tips
         'vigR': 406.,
         'f-number': 14.55 / 3.797,  # as treated in DESI-0347
         'blur2loss': Polynomial([0, -0.000141553, 0.000373672, -1.76888E-06, -8.23219E-08, 8.72644E-10]),  # input units mm
@@ -56,7 +57,8 @@ focal_surfaces = {
 
    'MM1536-cfg1-20210910':
         {'description': 'MegaMapper 1536 config 1, 2021-09-21',
-        'file': 'MM1536-cfg1-20210910.csv',
+        'Z_file': 'MM1536-cfg1-20210910.csv',
+        'CRD_file': 'MM1536-cfg1-20210910.csv',
         'z_sign': -1,
         'vigR': 613.2713,
         'f-number': 3.57,  # per 2023-03-21 email from Schlegel. Stated as "3.6" in RFI (2019-12-13) 
@@ -154,17 +156,17 @@ logger.info(f'Focal surface name: {focsurf_name}')
 logger.info(f'Focal surface parameters: {focsurf}')
 CRD2R_undefined = False
 force_CRD_to_zero = userargs.ignore_chief_ray_dev
-if 'file' in focsurf:
-    t = Table.read(focsurf['file'], comment='#')
 if 'Z' in focsurf: 
     R2Z = focsurf['Z']  # should be a function accepting numpy array argument for radius, returning z
-elif 'Z' in t:
+elif 'Z_file' in focsurf:
+    t = Table.read(focsurf['Z_file'], comment='#')
     R2Z = interp1d(t['R'], t['Z'])
 else:
     assert False, 'no Z(R) function or tabular input data'
 if 'CRD' in focsurf:
     R2CRD = focsurf['CRD']  # should be a function accepting numpy array argument for radius, returning chief ray deviation
-elif 'CRD' in t:
+elif 'CRD_file' in focsurf:
+    t = Table.read(focsurf['CRD_file'], comment='#')
     R2CRD = interp1d(t['R'], t['CRD'])
 else:
     force_CRD_to_zero = True
