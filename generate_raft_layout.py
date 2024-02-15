@@ -99,7 +99,7 @@ focsurfs_index = {i: name for i, name in enumerate(focal_surfaces)}
 
 # command line argument parsing
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f', '--focal_surface_number', type=int, default=0, help=f'select focal surface design by number, valid options are {focsurfs_index}')
+parser.add_argument('-f', '--focal_surface_number', type=int, default=3, help=f'select focal surface design by number, valid options are {focsurfs_index}')
 parser.add_argument('-r', '--limit_radius', type=float, default=0, help='maximum radius beyond which no part of raft instrumented area shall protrude, argue 0 to use the default for the given focal surface')
 parser.add_argument('-mrl', '--mechanical_radius_offset_limit', type=float, default=np.inf, help='mm, enforce restriction that no mechanical part of raft can exceed "limit_radius" plus this offset')
 parser.add_argument('-mwl', '--mechanical_wedge_offset_limit', type=float, default=0.0, help='mm, if "wedge" argument < 360 deg, then no part of raft can exceed the angular wedge envelope minus this linear offset')

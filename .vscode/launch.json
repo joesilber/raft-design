@@ -23,7 +23,7 @@
             "justMyCode": true,
             "args": [
                 "--focal_surface_number", "3",
-                "--limit_radius", "620.0",
+                "--limit_radius", "430.0",
                 "--wedge", "60",
                 
                 ],
