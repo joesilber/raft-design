@@ -1,22 +1,22 @@
-# Listing of surface sag,,,,
-#,,,,
-# File : C:\Users\Stephen Shectman\Dropbox\lens\1500\Run1536.zmx,,,,
-# Title: Magellan 3 Wide-Field 3.0 deg,,,,
-# Date : 9/10/2021,,,,
-# Configuration 1 of 3,,,,
-#,,,,
-# Units are Millimeters.,,,,
-# Semi-Diameter of surface 34:  6.132713E+002.,,,,
-# Algorithm assumes +z goes from air to glass.,,,,
-# ,,,,
-# Method: Minimum Volume Removal,,,,
-# Best Fit Sphere Radius        : -1.104566E+004.,,,,
-# Best Fit Sphere Vertex Offset : -3.892766E-003.,,,,
-# Maximum Depth to Remove       :  8.523632E-002.,,,,
-# Volume To Remove              :  1.765273E+004 cubic Millimeters.,,,,
-#,,,,
-# JHS 2022-05-29: I replaced the headers below with more intellible ones,,,,
-# for my nomenclature --- at least for the columns I am using.,,,,
+# Listing of surface sag
+#
+# File : C:\Users\Stephen Shectman\Dropbox\lens\1500\Run1536.zmx
+# Title: Magellan 3 Wide-Field 3.0 deg
+# Date : 9/10/2021
+# Configuration 1 of 3
+#
+# Units are Millimeters.
+# Semi-Diameter of surface 34:  6.132713E+002.
+# Algorithm assumes +z goes from air to glass.
+# 
+# Method: Minimum Volume Removal
+# Best Fit Sphere Radius        : -1.104566E+004.
+# Best Fit Sphere Vertex Offset : -3.892766E-003.
+# Maximum Depth to Remove       :  8.523632E-002.
+# Volume To Remove              :  1.765273E+004 cubic Millimeters.
+#
+# JHS 2022-05-29: I replaced the headers below with more intellible ones
+# for my nomenclature --- at least for the columns I am using.
 #Y-coord,Sag,BFS Sag,Deviation,Remove
 R,Z,BFS Sag,CRD,Remove
 0.000000E+000,0.000000E+000,0.00E+00,0.000000E+000,3.892766E-003
