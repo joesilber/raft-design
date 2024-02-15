@@ -51,7 +51,7 @@ class Raft:
         self.tilt_offset = tilt_offset
         self.neighbors = []
         self.outer_profile = outer_profile if outer_profile else RaftProfile()
-        self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=79., chamfer=7.9)
+        self.instr_profile = instr_profile if instr_profile else RaftProfile(tri_base=73., chamfer=7.9)
         self.r2nut = r2nut if r2nut else lambda x: np.zeros(np.shape(x))
         self.r2z = r2z if r2z else lambda x: np.zeros(np.shape(x))
         self.sphR = sphR
@@ -338,7 +338,7 @@ class Raft:
 class RaftProfile:
     '''Basic 2D profile geometry of raft.'''
 
-    def __init__(self, tri_base=80., length=657., chamfer=2.5):
+    def __init__(self, tri_base=74., length=650., chamfer=2.5):
         '''
         tri_base ... base length of triangular outline of raft
         length ... length of raft
@@ -387,13 +387,13 @@ class RaftProfile:
           INPUTS:   pitch ... [mm] center-to-center distance between robots within the raft
                     flip ... valid arguments:
                                 'optimal' ... choose the best option automatically
-                                'default' ... pattern based on nominal 75-robot raft design circa Dec 2022
+                                'default' ... pattern based on nominal 63-robot raft design circa Feb 2024 
                                 'vertical' ... mirror the default pattern vertically
                                 'horizontal' ... mirror the default pattern horizontally
           OUTPUTS:  Nx2 list of (x, y) positions
         '''
         if flip == 'optimal':
-            patterns = {key: self.generate_robot_pattern(pitch=pitch, flip=key) for key in ['default', 'horizontal', 'vertical']}
+            patterns = {key: self.generate_robot_pattern(pitch=pitch, flip=key) for key in ['default', 'horizontal', 'vertical', 'horizontal+oppositeshift', 'vertical+oppositeshift']}
             best_pattern_dist = -np.inf
             best_pattern_key = ''
             profile_polygon = self.polygon2D
@@ -419,7 +419,9 @@ class RaftProfile:
         pattern_row_x = pitch * np.arange(-overwidth_count, overwidth_count)
         pattern_row_y = np.zeros(np.shape(pattern_row_x))
         offset_x = 0.  # overall offset of the pattern
-        offset_y = -pitch / 3**0.5  # overall offset of the pattern
+        offset_y = pitch / 3**0.5  # overall offset of the pattern
+        if 'oppositeshift' in flip:
+            offset_y *= -1
         step_x = pitch / 2  # row-to-row x pitch
         step_y = pitch * 3**0.5 / 2  # row-to-row y pitch
         pattern = np.array([[],[]])
@@ -438,9 +440,9 @@ class RaftProfile:
         # mirroring cases
         if flip == 'default':
             pass
-        elif flip == 'vertical':
+        elif 'vertical' in flip:
             pattern[:, 1] *= -1
-        elif flip == 'horizontal':
+        elif 'horizontal' in flip:
             pattern[:, 0] *= -1
         else:
             assert False, f'did not recognize flip argument "{flip}"'
