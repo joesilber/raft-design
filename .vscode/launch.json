@@ -23,11 +23,28 @@
             "justMyCode": true,
             "args": [
                 "--focal_surface_number", "3",
-                "--limit_radius", "430.0",
+                "--limit_radius", "450.0",
                 "--wedge", "60",
-                
+                "--raft_gap", "2.0",
+                "--offset", "hex",
                 ],
         },
+
+        {
+            "name": "generate - jelinsky6m - full",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "--focal_surface_number", "3",
+                "--limit_radius", "450.0",
+                "--wedge", "360",
+                "--raft_gap", "2.0",
+                "--offset", "hex",
+                ],
+        },
+
 
         {
             "name": "generate - megamapper - 26,100 - 1/6",
