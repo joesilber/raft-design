@@ -23,7 +23,7 @@
             "justMyCode": true,
             "args": [
                 "--focal_surface_number", "3",
-                "--limit_radius", "450.0",
+                "--limit_radius", "460.0",
                 "--wedge", "60",
                 "--raft_gap", "2.0",
                 "--offset", "hex",
@@ -38,7 +38,7 @@
             "justMyCode": true,
             "args": [
                 "--focal_surface_number", "3",
-                "--limit_radius", "450.0",
+                "--limit_radius", "460.0",
                 "--wedge", "360",
                 "--raft_gap", "2.0",
                 "--offset", "hex",
