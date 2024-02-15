@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "generate - print help",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -16,8 +16,21 @@
         },
 
         {
+            "name": "generate - jelinsky6m - 1/6",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "generate_raft_layout",
+            "justMyCode": true,
+            "args": [
+                "-f", "3",
+                "-r", "620.0",
+                "-w", "60",
+                ],
+        },
+
+        {
             "name": "generate - megamapper - 26,100 - 1/6",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -31,7 +44,7 @@
 
         {
             "name": "generate - DESI2 - 34 trilliums / raft - 1/6",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -48,7 +61,7 @@
         
         {
             "name": "generate - DESI2 - 21 trilliums / raft - 1/6",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -65,7 +78,7 @@
 
         {
             "name": "generate - DESI2 - offset - 21 trilliums / raft - full",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -82,7 +95,7 @@
         },
        {
             "name": "generate - DESI2 - 11,250 - 1/6",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -99,7 +112,7 @@
 
         {
             "name": "generate - DESI2 - 11,250 - 1/6 - ignore CRD",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -117,7 +130,7 @@
         
         {
             "name": "generate - DESI2 - 8,550 - 1/6",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -131,7 +144,7 @@
 
         {
             "name": "generate - DESI2 - 11,250 - full - noshield",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -149,7 +162,7 @@
 
         {
             "name": "generate - DESI2 - 11,250 - 1/6 - noshield",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -167,7 +180,7 @@
         
         {
             "name": "generate - DESI2 - trillium - petal - hextile",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -191,7 +204,7 @@
 
         {
             "name": "generate - DESI2 - trillium - petal",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
@@ -215,7 +228,7 @@
 
         {
             "name": "generate - hectospec - full - noshield",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "generate_raft_layout",
             "justMyCode": true,
